@@ -19,6 +19,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+         \URL::forceScheme('https');
+         
         \Illuminate\Auth\Notifications\VerifyEmail::toMailUsing(function ($notifiable, $url) {
             return (new \Illuminate\Notifications\Messages\MailMessage)
                 ->subject('Verifica la tua email — Docum24')

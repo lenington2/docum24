@@ -5,8 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Docum24 — Gestione Documentale Intelligente per la tua Azienda</title>
+    <link rel="shortcut icon" type="image/png" href="{{ url('images/icon.png') }}">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|instrument-serif:400i" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
@@ -20,7 +22,7 @@
         }
 
         :root {
-            --cream: #FDFDFC;
+            --cream: #F8F6F2;
             --ink: #1b1b18;
             --mid: #706f6c;
             --dim: #a8a7a3;
@@ -967,14 +969,15 @@
     <!-- NAV -->
     <nav class="topbar">
         <a class="nav-logo" href="/">
-            <div class="nav-dot"></div>Docum24
-        </a>
+            <img src="{{ asset('images/logo.png') }}" alt="Docum24" style="height:30px;">
+        </a>        
         <div class="nav-links">
             @if (Route::has('login'))
                 @auth
                     <a href="{{ url('/dashboard') }}">Dashboard</a>
                 @else
-                    <a href="{{ route('login') }}">Accedi</a>
+                    <a href="https://app.docum24.com/login" style="background:#F53003;color:#fff;border:none;padding:8px 20px;border-radius:6px;
+        font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:'Instrument Sans',sans-serif;">Accedi</a>
                     @if (Route::has('register'))
                         <a href="{{ route('register') }}" class="pill">Inizia gratis</a>
                     @endif
@@ -985,118 +988,156 @@
 
 
     <!-- HERO -->
-    <div class="hero-wrap">
-        <div class="hero">
+<div class="hero-wrap">
+    <div class="hero">
+    
+        <div>
+            <div class="badge fu"><span class="badge-dot"></span>Gestione documentale con AI</div>
+            <div class="badge fu" style="margin-left:8px;background:#1b1b18;color:#fff;border-color:#1b1b18;">
+                🚧 <strong>Beta - Versione 1.3</strong>
+            </div>
+            <h1 class="fu2">I tuoi documenti,<br><em>gestiti dall'AI.</em></h1>
+            <p class="hero-sub fu3">Docum24 organizza tutta la documentazione della tua azienda, impara il tuo
+                settore e diventa un esperto del tuo business. Accesso istantaneo, report automatici, collaborazione
+                di team.</p>
 
-            <div>
-                <div class="badge fu"><span class="badge-dot"></span>Gestione documentale con AI</div>
-                <h1 class="fu2">I tuoi documenti,<br><em>gestiti dall'AI.</em></h1>
-                <p class="hero-sub fu3">Docum24 organizza tutta la documentazione della tua azienda, impara il tuo
-                    settore e diventa un esperto del tuo business. Accesso istantaneo, report automatici, collaborazione
-                    di team.</p>
+            <div class="ai-callout fu4">
+                <div class="ai-callout-ico">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="8" cy="8" r="3" />
+                        <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42" />
+                    </svg>
+                </div>
+                <div class="ai-callout-text">
+                    <strong>Agenti AI specializzati per settore</strong> — Docum24 analizza il tipo di azienda e si
+                    configura automaticamente. Categorie, tipologie e flussi su misura. Si adatta a studi legali,
+                    agenzie, manifattura e molto altro.
+                </div>
+            </div>
 
-                <div class="ai-callout fu4">
-                    <div class="ai-callout-ico">
+            <div class="hero-actions fu5">
+                @if (Route::has('register'))
+                    <a href="{{ route('register') }}" class="btn btn-dark">Inizia gratis</a>
+                @endif
+                <a href="#piani" class="btn btn-ghost">Vedi i piani</a>
+            </div>
+        </div>
+
+        <!-- VISUAL -->
+        <div class="hero-visual-wrap fu3" style="position:relative;">
+
+            <!-- Logo flotante + badge utenti -->
+            <div style="position:absolute;
+                        top:360px;
+                        right:140px;
+                        animation: floatLogo 4s ease-in-out infinite;
+                        pointer-events:none;
+                        z-index:2;">
+                
+                <img src="{{ asset('images/logo_vertical_color.png') }}"
+                    alt="Docum24"
+                    style="height:120px;
+                            opacity:0.6;
+                            display:block;">
+
+                <!-- Badge utenti registrati -->
+                <div style="position:absolute;
+                            top:-10px;
+                            right:-14px;
+                            background:#fff;
+                            border:1px solid var(--line);
+                            border-radius:8px;
+                            padding:5px 10px;
+                            box-shadow:0 4px 14px rgba(0,0,0,0.1);
+                            text-align:center;
+                            white-space:nowrap;">
+                    <div style="font-size:15px;font-weight:600;color:var(--ink);line-height:1;" id="user-counter">—</div>
+                    <div style="font-size:9px;color:var(--mid);margin-top:2px;">Utenti registrati</div>
+                </div>
+
+            </div>
+
+            <!-- Floating card top-right -->
+            <div class="fc fc-top">
+                <div class="fc-stat">142</div>
+                <div class="fc-label">Documenti questo mese</div>
+            </div>
+            <!-- Floating card bottom-left -->
+            <div class="fc fc-bot">
+                <div class="fc-stat">−78%</div>
+                <div class="fc-label">Tempo di ricerca</div>
+            </div>
+
+            <div class="doc-card" style="position:relative;z-index:1;">
+                <div class="doc-card-header">
+                    <span class="doc-card-title">Progetto: Accordi 2025</span>
+                    <span class="tag tag-act">Attivo</span>
+                </div>
+                <div class="doc-row">
+                    <div class="doc-ico" style="background:#fff2f2;"><svg viewBox="0 0 16 16" fill="none"
+                            stroke="#f53003" stroke-width="1.5">
+                            <path d="M4 2h6l3 3v9H4V2z" />
+                            <path d="M10 2v3h3" />
+                        </svg></div>
+                    <span class="doc-name">Contratto_NDA_cliente.pdf</span>
+                    <span class="tag tag-red">Contratto</span>
+                    <span class="doc-date">oggi</span>
+                </div>
+                <div class="doc-row">
+                    <div class="doc-ico" style="background:#f0fdf4;"><svg viewBox="0 0 16 16" fill="none"
+                            stroke="#15803d" stroke-width="1.5">
+                            <path d="M4 2h6l3 3v9H4V2z" />
+                            <path d="M10 2v3h3" />
+                        </svg></div>
+                    <span class="doc-name">Fattura_marzo_2025.pdf</span>
+                    <span class="tag tag-grn">Fattura</span>
+                    <span class="doc-date">ieri</span>
+                </div>
+                <div class="doc-row">
+                    <div class="doc-ico" style="background:#eff6ff;"><svg viewBox="0 0 16 16" fill="none"
+                            stroke="#1d4ed8" stroke-width="1.5">
+                            <path d="M4 2h6l3 3v9H4V2z" />
+                            <path d="M10 2v3h3" />
+                        </svg></div>
+                    <span class="doc-name">Proposta_commerciale.docx</span>
+                    <span class="tag tag-blu">Proposta</span>
+                    <span class="doc-date">3 mar</span>
+                </div>
+                <div class="doc-row">
+                    <div class="doc-ico" style="background:#fff2f2;"><svg viewBox="0 0 16 16" fill="none"
+                            stroke="#f53003" stroke-width="1.5">
+                            <path d="M4 2h6l3 3v9H4V2z" />
+                            <path d="M10 2v3h3" />
+                        </svg></div>
+                    <span class="doc-name">Accordo_servizio_v2.pdf</span>
+                    <span class="tag tag-red">Contratto</span>
+                    <span class="doc-date">28 feb</span>
+                </div>
+                <div style="padding-top:.85rem; border-top:1px solid var(--line); margin-top:.1rem;">
+                    <div class="ai-chip">
                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="8" cy="8" r="3" />
-                            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42" />
+                            <path d="M8 2v1M8 13v1M2 8h1M13 8h1" />
                         </svg>
-                    </div>
-                    <div class="ai-callout-text">
-                        <strong>Agenti AI specializzati per settore</strong> — Docum24 analizza il tipo di azienda e si
-                        configura automaticamente. Categorie, tipologie e flussi su misura. Si adatta a studi legali,
-                        agenzie, manifattura e molto altro.
-                    </div>
-                </div>
-
-                <div class="hero-actions fu5">
-                    @if (Route::has('register'))
-                        <a href="{{ route('register') }}" class="btn btn-dark">Inizia gratis</a>
-                    @endif
-                    <a href="#piani" class="btn btn-ghost">Vedi i piani</a>
-                </div>
-            </div>
-
-            <!-- VISUAL — wrapper senza overflow:hidden -->
-            <div class="hero-visual-wrap fu3">
-                <!-- Floating card top-right — VISIBILE perché fuori dall'overflow -->
-                <div class="fc fc-top">
-                    <div class="fc-stat">142</div>
-                    <div class="fc-label">Documenti questo mese</div>
-                </div>
-                <!-- Floating card bottom-left -->
-                <div class="fc fc-bot">
-                    <div class="fc-stat">−78%</div>
-                    <div class="fc-label">Tempo di ricerca</div>
-                </div>
-
-                <div class="doc-card">
-                    <div class="doc-card-header">
-                        <span class="doc-card-title">Progetto: Accordi 2025</span>
-                        <span class="tag tag-act">Attivo</span>
-                    </div>
-                    <div class="doc-row">
-                        <div class="doc-ico" style="background:#fff2f2;"><svg viewBox="0 0 16 16" fill="none"
-                                stroke="#f53003" stroke-width="1.5">
-                                <path d="M4 2h6l3 3v9H4V2z" />
-                                <path d="M10 2v3h3" />
-                            </svg></div>
-                        <span class="doc-name">Contratto_NDA_cliente.pdf</span>
-                        <span class="tag tag-red">Contratto</span>
-                        <span class="doc-date">oggi</span>
-                    </div>
-                    <div class="doc-row">
-                        <div class="doc-ico" style="background:#f0fdf4;"><svg viewBox="0 0 16 16" fill="none"
-                                stroke="#15803d" stroke-width="1.5">
-                                <path d="M4 2h6l3 3v9H4V2z" />
-                                <path d="M10 2v3h3" />
-                            </svg></div>
-                        <span class="doc-name">Fattura_marzo_2025.pdf</span>
-                        <span class="tag tag-grn">Fattura</span>
-                        <span class="doc-date">ieri</span>
-                    </div>
-                    <div class="doc-row">
-                        <div class="doc-ico" style="background:#eff6ff;"><svg viewBox="0 0 16 16" fill="none"
-                                stroke="#1d4ed8" stroke-width="1.5">
-                                <path d="M4 2h6l3 3v9H4V2z" />
-                                <path d="M10 2v3h3" />
-                            </svg></div>
-                        <span class="doc-name">Proposta_commerciale.docx</span>
-                        <span class="tag tag-blu">Proposta</span>
-                        <span class="doc-date">3 mar</span>
-                    </div>
-                    <div class="doc-row">
-                        <div class="doc-ico" style="background:#fff2f2;"><svg viewBox="0 0 16 16" fill="none"
-                                stroke="#f53003" stroke-width="1.5">
-                                <path d="M4 2h6l3 3v9H4V2z" />
-                                <path d="M10 2v3h3" />
-                            </svg></div>
-                        <span class="doc-name">Accordo_servizio_v2.pdf</span>
-                        <span class="tag tag-red">Contratto</span>
-                        <span class="doc-date">28 feb</span>
-                    </div>
-                    <div style="padding-top:.85rem; border-top:1px solid var(--line); margin-top:.1rem;">
-                        <div class="ai-chip">
-                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <circle cx="8" cy="8" r="3" />
-                                <path d="M8 2v1M8 13v1M2 8h1M13 8h1" />
-                            </svg>
-                            AI: 2 contratti in scadenza questa settimana
-                        </div>
+                        AI: 2 contratti in scadenza questa settimana
                     </div>
                 </div>
             </div>
-
         </div>
+
     </div>
+</div>
 
-    <!-- Floating card — usuarios registrados -->
-    <div class="fc" style="top: 50%; right: -12px; transform: translateY(-50%);">
-        <div class="fc-stat" id="user-counter">—</div>
-        <div class="fc-label">Utenti registrati</div>
-    </div>
+<!-- Animación flotante -->
+<style>
+@keyframes floatLogo {
+    0%   { transform: translateY(0px) rotate(0deg); }
+    50%  { transform: translateY(-14px) rotate(2deg); }
+    100% { transform: translateY(0px) rotate(0deg); }
+}
+</style>
 
-
+    
     <!-- AI CORE -->
     <section class="section">
         <div class="sec-label">Intelligenza Artificiale</div>
@@ -1155,28 +1196,40 @@
         </div>
 
         <!-- Agenti per settore -->
-        <div class="agent-strip">
-            <div class="agent">
-                <div class="agent-tag">Agente</div>
-                <div class="agent-name">⚖️ Studio Legale</div>
-                <div class="agent-desc">Contratti, scadenze, fascicoli clienti e atti giudiziari.</div>
+    <div class="agent-strip">
+        <div class="agent">
+            <div class="agent-tag">Agente</div>
+            <div class="agent-name">
+                <span class="material-symbols-rounded" style="font-size:20px;vertical-align:middle;margin-right:6px;">gavel</span>
+                Studio Legale
             </div>
-            <div class="agent">
-                <div class="agent-tag">Agente</div>
-                <div class="agent-name">🏗️ Edilizia & Appalti</div>
-                <div class="agent-desc">Capitolati, permessi, SAL, collaudi e documentazione cantiere.</div>
-            </div>
-            <div class="agent">
-                <div class="agent-tag">Agente</div>
-                <div class="agent-name">💼 Agenzia & Consulenza</div>
-                <div class="agent-desc">Proposte, report clienti, brief e rendicontazione ore.</div>
-            </div>
-            <div class="agent">
-                <div class="agent-tag">Agente</div>
-                <div class="agent-name">🏭 PMI & Manifattura</div>
-                <div class="agent-desc">Ordini, DDT, certificazioni qualità e compliance normativa.</div>
-            </div>
+            <div class="agent-desc">Contratti, scadenze, fascicoli clienti e atti giudiziari.</div>
         </div>
+        <div class="agent">
+            <div class="agent-tag">Agente</div>
+            <div class="agent-name">
+                <span class="material-symbols-rounded" style="font-size:20px;vertical-align:middle;margin-right:6px;">construction</span>
+                Edilizia & Appalti
+            </div>
+            <div class="agent-desc">Capitolati, permessi, SAL, collaudi e documentazione cantiere.</div>
+        </div>
+        <div class="agent">
+            <div class="agent-tag">Agente</div>
+            <div class="agent-name">
+                <span class="material-symbols-rounded" style="font-size:20px;vertical-align:middle;margin-right:6px;">business_center</span>
+                Agenzia & Consulenza
+            </div>
+            <div class="agent-desc">Proposte, report clienti, brief e rendicontazione ore.</div>
+        </div>
+        <div class="agent">
+            <div class="agent-tag">Agente</div>
+            <div class="agent-name">
+                <span class="material-symbols-rounded" style="font-size:20px;vertical-align:middle;margin-right:6px;">factory</span>
+                PMI & Manifattura
+            </div>
+            <div class="agent-desc">Ordini, DDT, certificazioni qualità e compliance normativa.</div>
+        </div>
+    </div>
     </section>
 
     <hr class="divider">
@@ -1184,10 +1237,17 @@
 
     <!-- STRUTTURA -->
     <section class="section">
-        <div class="sec-label">Struttura</div>
-        <h2 class="sec-title">Tutto al suo posto</h2>
-        <p class="sec-sub">Tre livelli di organizzazione configurabili per qualsiasi tipo di azienda. L'AI suggerisce
-            la struttura migliore per il tuo settore.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div class="sec-label">Struttura</div>
+                <h2 class="sec-title" style="margin-bottom:8px;">Tutto al suo posto</h2>
+                <p class="sec-sub">Tre livelli di organizzazione configurabili per qualsiasi tipo di azienda. L'AI suggerisce
+                    la struttura migliore per il tuo settore.</p>
+            </div>
+            <img src="{{ asset('images/logo_vertical_color.png') }}" 
+                alt="Docum24" 
+                style="height:100px;flex-shrink:0;margin-left:40px;">
+        </div>
 
         <div class="steps">
             <div class="step">
@@ -1222,14 +1282,21 @@
 
     <!-- PIANI -->
     <section class="section" id="piani">
-        <div class="sec-label">Prezzi</div>
-        <h2 class="sec-title">Il piano che cresce con te</h2>
-        <p class="sec-sub">Inizia gratis e scala quando la tua azienda ne ha bisogno. Nessuna sorpresa.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div class="sec-label">Prezzi</div>
+                <h2 class="sec-title" style="margin-bottom:8px;">Il piano che cresce con te</h2>
+                <p class="sec-sub">Inizia gratis e scala quando la tua azienda ne ha bisogno. Nessuna sorpresa.</p>
+            </div>
+            <img src="{{ asset('images/logo_vertical_color.png') }}" 
+                alt="Docum24" 
+                style="height:100px;flex-shrink:0;margin-left:40px;">
+        </div>
 
         <div class="pricing-grid">
 
             <div class="plan">
-                <div class="plan-head">
+                <div class="plan-head" style="position:relative;">
                     <div class="plan-name">Trial</div>
                     <div class="plan-price">Gratis <sub>/ 30 giorni</sub></div>
                     <div class="plan-tagline">Prova Docum24 senza impegno. Nessuna carta richiesta.</div>
@@ -1381,7 +1448,7 @@
         </div>
     </section>
 
-
+    
     <!-- CTA BANNER -->
     <div class="cta-wrap">
         <div class="cta-banner">
@@ -1389,8 +1456,14 @@
                 <h2>Pronto a trasformare<br><em>la tua gestione documentale?</em></h2>
                 <p>Crea il tuo account in meno di 2 minuti. Nessuna carta di credito richiesta.</p>
             </div>
+
             @if (Route::has('register'))
-                <a href="{{ route('register') }}" class="btn-white">Inizia gratis →</a>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                    <img src="{{ asset('images/logo-ligth.png') }}" 
+                        alt="Docum24" 
+                        style="height:50px;">
+                    <a href="{{ route('register') }}" class="btn-white">Inizia gratis →</a>
+                </div>
             @endif
         </div>
     </div>
@@ -1399,39 +1472,66 @@
     <!-- FOOTER -->
     <footer>
         <div style="display:flex;align-items:center;gap:.5rem;">
-            <div class="nav-dot" style="width:6px;height:6px;"></div>
-            <span style="font-weight:600;color:var(--ink);">Docum24</span>
+            <img src="{{ asset('images/logo.png') }}" alt="Docum24" style="height:20px;">
             <span>— Gestione documentale intelligente per le aziende italiane</span>
         </div>
         <div style="display:flex;gap:1.5rem;">
-            <a href="#">Privacy</a>
-            <a href="#">Termini</a>
-            <a href="#">Contatti</a>
+            <a href="#" onclick="document.getElementById('modal-privacy').style.display='flex';return false;">Privacy</a>
+            <a href="#" onclick="document.getElementById('modal-dati').style.display='flex';return false;">Dati personali</a>
+            <a href="#" onclick="document.getElementById('modal-termini').style.display='flex';return false;">Termini</a>
+            <a href="#" onclick="document.getElementById('modal-contatti').style.display='flex';return false;">Contatti</a>
         </div>
     </footer>
 
     <script>
-    async function animateCounter(el, target, duration = 1200) {
-        const start = performance.now();
-        const update = (now) => {
-            const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-            el.textContent = Math.floor(eased * target);
-            if (progress < 1) requestAnimationFrame(update);
-            else el.textContent = target;
-        };
-        requestAnimationFrame(update);
-    }
+        async function animateCounter(el, target, duration = 1200) {
+            const start = performance.now();
+            const update = (now) => {
+                const progress = Math.min((now - start) / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+                el.textContent = Math.floor(eased * target);
+                if (progress < 1) requestAnimationFrame(update);
+                else el.textContent = target;
+            };
+            requestAnimationFrame(update);
+        }
 
-    fetch('/api/user-count')
-        .then(r => r.json())
-        .then(data => {
-            const el = document.getElementById('user-counter');
-            animateCounter(el, data.count);
-        })
-        .catch(() => {
-            document.getElementById('user-counter').textContent = '—';
-        });
+        fetch('/api/user-count')
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('user-counter');
+                animateCounter(el, data.count);
+            })
+            .catch(() => {
+                document.getElementById('user-counter').textContent = '—';
+            });
+    </script>
+    @include('partials.modal-styles')
+    @include('partials.privacy-modal')
+    @include('partials.termini-modal')
+    @include('partials.dati-modal')
+    @include('partials.contatti-modal')
+
+    <div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;
+    background:#1b1b18;color:#fff;padding:14px 24px;z-index:9999;
+    display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+    border-top:1px solid #2e2e2a;font-family:'Instrument Sans',sans-serif;">
+    <p style="margin:0;font-size:12px;color:#a8a7a3;max-width:700px;">
+        🍪 Questo sito utilizza esclusivamente <strong style="color:#fff;">cookie tecnici</strong> necessari al funzionamento. 
+        Nessun cookie di profilazione o marketing. 
+        <a href="#" onclick="openModal('modal-privacy');return false;" style="color:#F53003;text-decoration:underline;">Privacy Policy</a>
+    </p>
+    <button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie_ok','1')"
+        style="background:#F53003;color:#fff;border:none;padding:8px 20px;border-radius:6px;
+        font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:'Instrument Sans',sans-serif;">
+        Ho capito
+    </button>
+</div>
+
+<script>
+if (!localStorage.getItem('cookie_ok')) {
+    document.getElementById('cookie-banner').style.display = 'flex';
+}
 </script>
 </body>
 

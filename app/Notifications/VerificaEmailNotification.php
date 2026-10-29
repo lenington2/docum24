@@ -20,11 +20,13 @@ class VerificaEmailNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $verificationUrl = URL::temporarySignedRoute(
+        $backendUrl = URL::temporarySignedRoute(
             'verification.verify',
             Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
             ['id' => $notifiable->getKey(), 'hash' => sha1($notifiable->getEmailForVerification())]
         );
+
+        $verificationUrl = 'https://app.docum24.com/email/verify?verify_url=' . urlencode($backendUrl);
 
         return (new MailMessage)
             ->subject('Verifica la tua email — Docum24')

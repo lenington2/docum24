@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Gestione Documenti IA</title>
-    <link rel="shortcut icon" type="image/png" href="{{ url('images/logo.png') }}">
+    <link rel="shortcut icon" type="image/png" href="{{ url('images/icon.png') }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
 
         :root {
             /* Colores Landing */
-            --cream: #FDFDFC;
+            --cream: #F8F6F2;
             --ink: #1b1b18;
             --red: #F53003;
             --line: #e3e3e0;
@@ -38,7 +38,7 @@
             /* Un tono sutilmente más claro para burbujas */
             --incoming-chat-border: #2e2e2a;
             /* Bordes suaves para evitar "rayas" */
-            --text-color: #FDFDFC;
+            --text-color: #F8F6F2;
             --icon-color: #a8a7a3;
             --accent: #F53003;
             /* Rojo de la landing */
@@ -687,7 +687,7 @@
     <!-- Header -->
     <header>
         <div class="logo-container">
-            <span class="logo-text"><span>Docu</span>Flow</span>
+            <img id="logo-img" src="{{ asset('images/logo.png') }}" alt="Docum24" style="height:30px;">
         </div>
 
         <div class="header-right">
@@ -805,7 +805,7 @@
                         onmouseover="this.style.background='var(--icon-hover-bg)'"
                         onmouseout="this.style.background='var(--incoming-chat-bg)'">
                         <div
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;">
+                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f53003,#cc0000);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;">
                             {{ strtoupper(substr(auth()->user()->name, 0, 2)) }}
                         </div>
                     </button>
@@ -1005,17 +1005,17 @@
                 <button id="btn-deep-search" onclick="toggleDeepSearch()"
                     title="DeepSearch — cerca nel web e nelle tue fonti"
                     style="position:absolute;right:55px;bottom:50%;transform:translateY(50%);
-           width:34px;height:34px;border-radius:8px;background:transparent;
-           color:var(--icon-color);border:none;cursor:pointer;
-           display:flex;align-items:center;justify-content:center;
-           transition:all 0.2s;opacity:0.5;">
+                    width:34px;height:34px;border-radius:8px;background:transparent;
+                    color:var(--icon-color);border:none;cursor:pointer;
+                    display:flex;align-items:center;justify-content:center;
+                    transition:all 0.2s;opacity:0.5;">
                     <span class="material-symbols-rounded" style="font-size:20px;">travel_explore</span>
                 </button>
 
                 <input type="file" id="file-input-chat" multiple
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt" style="display:none;"
-                    onchange="onFilesSelected(this)">
-
+                    onchange="onFilesSelected(this)">                
+                
                 <textarea id="chat-input" placeholder="Scrivi il tuo messaggio qui..." rows="1" style="padding-left:50px;"></textarea>
                 <div id="send-btn"
                     style="position:absolute;right:10px;bottom:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--icon-color);cursor:pointer;border-radius:4px;transition:all 0.2s;">
@@ -1160,7 +1160,10 @@
                 </button>
 
             </div>
-        </div>
+        </div>        
+        <div style="padding:2px 16px;text-align:center;font-size:12px;color:var(--icon-color);opacity:0.5;">
+                        ⚠ Le risposte AI potrebbero contenere errori. Verifica sempre.
+                    </div>
     </div>
 
 
@@ -1290,14 +1293,18 @@
         function setTheme(theme) {
             const toggle = document.getElementById('themeToggle');
             const dot = toggle?.querySelector('span');
+            const logo = document.getElementById('logo-img');  // ← AGGIUNGI
+            
             if (theme === 'light') {
                 body.classList.add('light-mode');
-                if (dot) dot.style.transform = 'translateX(16px)'; // Mueve el círculo
-                if (toggle) toggle.style.background = '#F53003'; // Rojo landing cuando está activo
+                if (dot) dot.style.transform = 'translateX(16px)';
+                if (toggle) toggle.style.background = '#F53003';
+                if (logo) logo.src = '{{ asset("images/logo.png") }}';  // ← AGGIUNGI
             } else {
                 body.classList.remove('light-mode');
-                if (dot) dot.style.transform = 'translateX(0)'; // Vuelve al inicio
-                if (toggle) toggle.style.background = '#1b1b18'; // Negro landing en modo oscuro
+                if (dot) dot.style.transform = 'translateX(0)';
+                if (toggle) toggle.style.background = '#1b1b18';
+                if (logo) logo.src = '{{ asset("images/logo-ligth.png") }}';  // ← AGGIUNGI
             }
             localStorage.setItem('theme', theme);
         }
@@ -1344,7 +1351,7 @@
         function addTypingAnimation() {
             const html = `
                 <div class="chat-content">
-                    <div class="chat-icon"><span class="material-symbols-rounded">robot_2</span></div>
+                    <div class="chat-icon"><img src="/images/icon.png" alt="Docum24" style="height:20px;width:20px;object-fit:contain;"></div>
                     <div class="chat-text">
                         <div class="typing-animation">
                             <div class="typing-dot"></div>
@@ -1463,7 +1470,7 @@
         async function addBotMessage(text) {
             const html = `
                 <div class="chat-content">
-                    <div class="chat-icon"><span class="material-symbols-rounded">robot_2</span></div>
+                    <div class="chat-icon"><img src="/images/icon.png" alt="Docum24" style="height:20px;width:20px;object-fit:contain;"></div>
                     <div class="chat-text" id="bot-text"></div>
                     <button onclick="copiarRisposta(this)" title="Copia risposta"
                         style="align-self:flex-end;flex-shrink:0;border:none;background:transparent;
@@ -2035,7 +2042,7 @@
                                     </div>
                                     <div style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--outgoing-chat-bg);border-radius:12px;border:1px solid var(--incoming-chat-border);">
                                         <div style="width:34px;height:34px;border-radius:8px;background:#f59e0b20;border:1px solid #f59e0b40;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                                            <span class="material-symbols-rounded" style="font-size:18px;color:#f59e0b;">robot_2</span>
+                                            <img src="/images/icon.png" alt="Docum24" style="height:18px;width:18px;object-fit:contain;">
                                         </div>
                                         <div>
                                             <p style="margin:0;font-size:12px;font-weight:700;color:var(--text-color);">L'AI analizza automaticamente</p>
@@ -2491,7 +2498,7 @@ async function guidaApriProgetto(id, nombre, btn) {
             wizardDiv.style.padding = '16px 10px';
             wizardDiv.innerHTML = `
     <div class="chat-content">
-        <div class="chat-icon"><span class="material-symbols-rounded">robot_2</span></div>
+        <div class="chat-icon"><img src="/images/icon.png" alt="Docum24" style="height:20px;width:20px;object-fit:contain;"></div>
         <div class="chat-text" style="font-size:13px;">
             <div style="display:flex;flex-direction:column;gap:2px;min-width:280px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -3665,7 +3672,7 @@ async function guidaApriProgetto(id, nombre, btn) {
                         chatDiv.innerHTML = `
                 <div class="chat-content">
                     <div class="chat-icon">
-                        <span class="material-symbols-rounded">robot_2</span>
+                        <img src="/images/icon.png" alt="Docum24" style="height:18px;width:18px;object-fit:contain;">
                     </div>
                     <div class="chat-text">
                         <div style="display:flex;align-items:center;gap:10px;background:var(--incoming-chat-bg);border:1px solid #f59e0b30;border-radius:12px;padding:14px 16px;max-width:400px;">
@@ -3731,7 +3738,7 @@ async function guidaApriProgetto(id, nombre, btn) {
             chatDiv.style.padding = '16px 10px';
             chatDiv.innerHTML = `
         <div class="chat-content">
-            <div class="chat-icon"><span class="material-symbols-rounded">robot_2</span></div>
+            <div class="chat-icon"><img src="/images/icon.png" alt="Docum24" style="height:20px;width:20px;object-fit:contain;"></div>
             <div class="chat-text" style="font-size:13px;">${texto}</div>
         </div>`;
             chatContainer.appendChild(chatDiv);
@@ -3800,7 +3807,7 @@ async function guidaApriProgetto(id, nombre, btn) {
                             chatDiv.innerHTML = `
                     <div class="chat-content">
                         <div class="chat-icon">
-                            <span class="material-symbols-rounded">robot_2</span>
+                            <img src="/images/icon.png" alt="Docum24" style="height:18px;width:18px;object-fit:contain;">
                         </div>
                         <div class="chat-text">
                             <div style="background:var(--incoming-chat-bg);border:1px solid #6366f130;border-radius:12px;padding:14px 16px;max-width:400px;">
@@ -4575,7 +4582,7 @@ async function guidaApriProgetto(id, nombre, btn) {
                             chatDiv.innerHTML = `
                     <div class="chat-content">
                         <div class="chat-icon">
-                            <span class="material-symbols-rounded">robot_2</span>
+                            <img src="/images/icon.png" alt="Docum24" style="height:18px;width:18px;object-fit:contain;">
                         </div>
                         <div class="chat-text">
                             <div style="background:var(--incoming-chat-bg);border:1px solid #10b98130;border-radius:12px;padding:14px 16px;max-width:400px;">
@@ -4909,7 +4916,7 @@ async function guidaApriProgetto(id, nombre, btn) {
                 onmouseover="this.style.borderColor='#6366f1';this.style.background='#6366f108';this.style.boxShadow='0 8px 24px rgba(99,102,241,0.15)';this.style.transform='translateY(-2px)'"
                 onmouseout="this.style.borderColor='var(--incoming-chat-border)';this.style.background='var(--incoming-chat-bg)';this.style.boxShadow='none';this.style.transform='translateY(0)'">
                 <div style="width:46px;height:46px;border-radius:13px;background:#6366f120;border:1px solid #6366f130;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                    <span class="material-symbols-rounded" style="font-size:24px;color:#6366f1;">robot_2</span>
+                    <img src="/images/icon.png" alt="Docum24" style="height:24px;width:24px;object-fit:contain;">
                 </div>
                 <div style="flex:1;">
                     <p style="margin:0;font-size:14px;font-weight:700;color:var(--text-color);">L'AI configura tutto per me 🚀</p>
@@ -5410,7 +5417,7 @@ async function guidaApriProgetto(id, nombre, btn) {
                                 // Render directo sin typewriter para historial
                                 const html = `
                         <div class="chat-content">
-                            <div class="chat-icon"><span class="material-symbols-rounded">robot_2</span></div>
+                            <div class="chat-icon"><img src="/images/icon.png" alt="Docum24" style="height:20px;width:20px;object-fit:contain;"></div>
                             <div class="chat-text">${formatMarkdown(content)}</div>
                             <button onclick="copiarRisposta(this)" title="Copia risposta"
                                 style="align-self:flex-end;flex-shrink:0;border:none;background:transparent;
@@ -6046,6 +6053,18 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 @endif
 
+<div style="position:fixed;bottom:6px;right:16px;
+    display:flex;gap:1.2rem;z-index:201;opacity:0.25;transition:opacity 0.2s;"
+    onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.25'">
+    <a href="#" onclick="openModal('modal-privacy');return false;" style="font-size:10px;color:var(--icon-color);text-decoration:none;">Privacy</a>
+    <a href="#" onclick="openModal('modal-dati');return false;" style="font-size:10px;color:var(--icon-color);text-decoration:none;">Dati</a>
+    <a href="#" onclick="openModal('modal-termini');return false;" style="font-size:10px;color:var(--icon-color);text-decoration:none;">Termini</a>
+    <a href="#" onclick="openModal('modal-contatti');return false;" style="font-size:10px;color:var(--icon-color);text-decoration:none;">Contatti</a>
+</div>
+@include('partials.modal-styles')
+@include('partials.privacy-modal')
+@include('partials.termini-modal')
+@include('partials.dati-modal')
+@include('partials.contatti-modal')
 </body>
-
 </html>

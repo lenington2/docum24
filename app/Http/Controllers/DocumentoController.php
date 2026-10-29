@@ -402,4 +402,42 @@ class DocumentoController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * AGREGAR ESTE MÉTODO EN DocumentoController.php
+     * (después del método buscar() existente, antes de downloadMultiple())
+     *
+     * Endpoint dedicado para el chat — devuelve datos limpios con fecha
+     */
+    public function buscarParaChat(Request $request)
+    {
+        $q = $request->get('q', '');
+        if (strlen($q) < 2) return response()->json(['success' => true, 'docs' => []]);
+    
+        $docs = Documento::with(['proyecto', 'categoria', 'tipologia'])
+            ->where('user_id', Auth::id())
+            ->where(function ($query) use ($q) {
+                $query->where('nombre', 'like', "%{$q}%")
+                    ->orWhere('descripcion', 'like', "%{$q}%")
+                    ->orWhere('categoria_ia', 'like', "%{$q}%")
+                    ->orWhere('tipologia_ia', 'like', "%{$q}%");
+            })
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(fn($d) => [
+                'id'          => $d->id,
+                'nombre'      => $d->nombre,
+                'mime_type'   => $d->mime_type,
+                'created_at'  => $d->created_at->format('Y-m-d'),
+                'categoria'   => $d->categoria?->nombre,
+                'tipologia'   => $d->tipologia?->nombre,
+                'proyecto_id' => $d->proyecto_id,
+                'proyecto'    => $d->proyecto?->nombre,
+                'descripcion' => $d->descripcion,
+            ]);
+    
+        return response()->json(['success' => true, 'docs' => $docs]);
+    }
+
 }

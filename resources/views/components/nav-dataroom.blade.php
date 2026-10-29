@@ -667,11 +667,11 @@
             'width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;';
         if (!mimeType) return `<div style="${base}background:#6b728020;color:#6b7280;">?</div>`;
         if (mimeType.includes('pdf')) return `<div style="${base}background:#ef444420;color:#ef4444;">PDF</div>`;
-        if (mimeType.includes('word') || mimeType.includes('document'))
+        if (mimeType.includes('word') || mimeType.includes('wordprocessingml'))
             return `<div style="${base}background:#3b82f620;color:#3b82f6;">DOC</div>`;
-        if (mimeType.includes('excel') || mimeType.includes('spreadsheet'))
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheetml') || mimeType.includes('spreadsheet'))
             return `<div style="${base}background:#10b98120;color:#10b981;">XLS</div>`;
-        if (mimeType.includes('powerpoint') || mimeType.includes('presentation'))
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentationml') || mimeType.includes('presentation'))
             return `<div style="${base}background:#f59e0b20;color:#f59e0b;">PPT</div>`;
         if (mimeType.includes('jpeg') || mimeType.includes('jpg'))
             return `<div style="${base}background:#ec489920;color:#ec4899;">JPG</div>`;

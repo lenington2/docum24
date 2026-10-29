@@ -93,7 +93,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/documentos/{documento}/info', [DocumentoController::class, 'info']);
     Route::put('/documentos/{documento}', [DocumentoController::class, 'update']);
     Route::get('/documentos/{documento}/preview-token', [DocumentoController::class, 'previewToken']);
-    Route::get('/preview-public', [DocumentoController::class, 'previewPublic'])->name('preview.public');
+
     //file-view
     Route::get('/documentos/{documento}/info',     [DocumentoController::class, 'info']);
     Route::get('/documentos/{documento}/preview',  [DocumentoController::class, 'preview']);
@@ -151,6 +151,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/teams/{team}/switch', [TeamController::class, 'switchTeam']);
     Route::get('/teams/invitations/{invitation}/accept', [TeamController::class, 'acceptInvitation'])->name('team.invitation.accept');
 });
+
+    Route::get('/preview-public', [DocumentoController::class, 'previewPublic'])->name('preview.public');
 
     Route::post('/teams/switch/personal', function() {
         Auth::user()->update(['current_team_id' => null]);

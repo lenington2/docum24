@@ -3,7 +3,7 @@
 
     {{-- Bottone Flottante --}}
     <button id="support-toggle" aria-label="Supporto AI"
-        style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;
+        style="position:fixed;bottom:60px;right:24px;width:52px;height:52px;
                background:var(--ink);border:none;border-radius:50%;cursor:pointer;
                box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;
                justify-content:center;transition:all 0.3s ease;z-index:9999;">

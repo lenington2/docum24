@@ -165,11 +165,17 @@
 
         } else if (['doc','docx','xls','xlsx','ppt','pptx'].includes(ext)) {
             const iframe    = document.getElementById('viewer-office');
-            const publicUrl = window.location.origin + url;
-            const msUrl     = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(publicUrl)}`;
-            const gUrl      = `https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`;
+            
+            // Construir publicUrl con el token sin doble-encode
+            const tokenRes2  = await fetch(`/documentos/${docId}/preview-token`);
+            const tokenData2 = await tokenRes2.json();
+            const rawToken   = tokenData2.token; // token sin encodar
+            const publicUrl  = window.location.origin + `/preview-public?token=${rawToken}`;
+            
+            const msUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(publicUrl)}`;
+            const gUrl  = `https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`;
 
-            iframe.src          = msUrl;
+            iframe.src           = msUrl;
             iframe.style.display = 'block';
 
             let fallback = false;

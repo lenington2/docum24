@@ -75,7 +75,7 @@
     <div
         style="padding:14px 16px;border-top:1px solid var(--incoming-chat-border);display:flex;align-items:center;gap:10px;">
         <div
-            style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">
+            style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f53003,#cc0000);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">
             {{ strtoupper(substr(auth()->user()->name, 0, 2)) }}
         </div>
         <div style="flex:1;min-width:0;">

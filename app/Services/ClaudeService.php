@@ -22,7 +22,6 @@ class ClaudeService
         try {
             $fileContent = base64_encode(Storage::disk('local')->get($filePath));
 
-            // Claude soporta PDF e imágenes nativamente
             $mediaType = $this->normalizeMediaType($mimeType);
 
             $prompt = "Analizza questo documento e rispondi SOLO con un JSON valido, senza markdown, senza backtick, senza spiegazioni extra. Il JSON deve avere esattamente questi campi:
@@ -31,21 +30,41 @@ class ClaudeService
   \"tipologia\": \"tipo specifico (es: Contratto di Affitto, Fattura, Ricevuta, Certificato, Atto Notarile, Dichiarazione dei Redditi, Polizza, Altro)\",
   \"data_documento\": \"data in formato YYYY-MM-DD se trovata, altrimenti null\",
   \"data_scadenza\": \"data di scadenza in formato YYYY-MM-DD se presente (es: scadenza polizza, scadenza contratto, data limite pagamento fattura), altrimenti null\",
-  \"descrizione\": \"massimo 100 parole in italiano\"
+  \"descrizione\": \"massimo 80 parole in italiano\"
 }";
 
             $content = [];
 
-            // Si es PDF o imagen lo mandamos como archivo
-            if (in_array($mediaType, ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+            if ($mediaType === 'application/pdf') {
+                // PDF → mandarlo nativo a Claude
                 $content[] = [
-                    'type'   => $mediaType === 'application/pdf' ? 'document' : 'image',
+                    'type'   => 'document',
+                    'source' => [
+                        'type'       => 'base64',
+                        'media_type' => 'application/pdf',
+                        'data'       => $fileContent,
+                    ],
+                ];
+            } elseif (in_array($mediaType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+                // Imágenes → mandarlo nativo a Claude
+                $content[] = [
+                    'type'   => 'image',
                     'source' => [
                         'type'       => 'base64',
                         'media_type' => $mediaType,
                         'data'       => $fileContent,
                     ],
                 ];
+            } else {
+                // Word, TXT, Excel, etc. → extraer texto y mandarlo como texto plano
+                $extractor     = new \App\Services\TextExtractorService();
+                $textoExtraido = $extractor->extract($filePath, $mimeType);
+
+                if ($textoExtraido) {
+                    $prompt = "Testo del documento:\n\n" . mb_substr($textoExtraido, 0, 3000) . "\n\n" . $prompt;
+                } else {
+                    return $this->resultadoFallback();
+                }
             }
 
             // Siempre añadimos el prompt de texto
@@ -55,7 +74,6 @@ class ClaudeService
                     'x-api-key'         => $this->apiKey,
                     'anthropic-version' => '2023-06-01',
                     'content-type'      => 'application/json',
-                    'anthropic-beta'    => 'pdfs-2024-09-25',
                 ])
                 ->timeout(60)
                 ->post($this->apiUrl, [
@@ -123,7 +141,8 @@ class ClaudeService
             'image/gif'          => 'image/gif',
             'image/webp'         => 'image/webp',
         ];
-        return $map[$mimeType] ?? 'application/pdf';
+        // 'unsupported' → el bloque else extrae el texto con TextExtractorService
+        return $map[$mimeType] ?? 'unsupported';
     }
 
     private function resultadoFallback(): array
@@ -133,7 +152,7 @@ class ClaudeService
             'categoria'      => 'Senza Categoria',
             'tipologia'      => 'Altro',
             'data_documento' => null,
-            'data_scadenza' => null,
+            'data_scadenza'  => null,
             'descrizione'    => null,
         ];
     }

@@ -9,3 +9,9 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('notifiche:check')->dailyAt('08:00');
+
+Schedule::call(function () {
+    \App\Models\User::whereNull('email_verified_at')
+        ->where('created_at', '<', now()->subHours(24))
+        ->delete();
+})->daily();

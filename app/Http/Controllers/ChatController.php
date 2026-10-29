@@ -8,6 +8,7 @@ use App\Services\ClaudeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Services\IntentResolver;
 
 
 class ChatController extends Controller
@@ -18,8 +19,9 @@ class ChatController extends Controller
 
     public function __construct(ClaudeService $claude)
     {
-        $this->claude       = $claude;
-        $this->tokenService = new \App\Services\TokenService();
+        $this->claude         = $claude;
+        $this->tokenService   = new \App\Services\TokenService();
+        $this->intentResolver = new IntentResolver();
     }
 
     public function send(Request $request)
@@ -35,110 +37,44 @@ class ChatController extends Controller
         $sessionId = $request->session_id ?? uniqid('chat_');
         $esNuevo   = $request->boolean('es_nuevo', false);
 
+        
         // ═══════════════════════════════════════════════════════════
-        // BLOQUE ONBOARDING — solo para usuarios sin business_type
+        // INTENT RESOLVER — Capa determinística antes del AI
         // ═══════════════════════════════════════════════════════════
-
-        // Onboarding de business_type eliminado — se hace en el registro
-
-        // ═══════════════════════════════════════════════════════════
-        // BÚSQUEDA DE PROYECTO
-        // ═══════════════════════════════════════════════════════════
-
-        if (
-            preg_match('/cerco|cerca|trova|sto cercando|apri|aprir[ei]|vai a|apriamo/i', $message) &&
-            preg_match('/progett[oi]/i', $message)
-        ) {
-
-            $termino = preg_replace(
-                '/^.*?(cerco|cerca|trova|sto cercando|apri|apriamo|vai a)\s+(il\s+|un\s+|la\s+)?progett[oi]\s*/i',
-                '',
-                $message
+        $resolved = $this->intentResolver->resolve($message, $user);
+ 
+        if ($resolved !== null) {
+            // El IntentResolver reconoció la intención → responder directo
+            // Guardar en historial para contexto
+            $cacheKey  = "chat_session_{$user->id}_{$sessionId}";
+            $historial = cache()->get($cacheKey, []);
+            $historial[] = ['role' => 'user', 'content' => $message];
+            $historial[] = ['role' => 'assistant', 'content' => $resolved['message']];
+            if (count($historial) > 20) $historial = array_slice($historial, -20);
+            cache()->put($cacheKey, $historial, now()->addHours(2));
+ 
+            // Persistir conversación
+            \App\Models\Conversacion::updateOrCreate(
+                ['session_id' => $sessionId],
+                [
+                    'user_id'           => $user->id,
+                    'historial'         => $historial,
+                    'ultimo_mensaje_at' => now(),
+                    'titulo'            => \App\Models\Conversacion::where('session_id', $sessionId)->exists()
+                        ? \App\Models\Conversacion::where('session_id', $sessionId)->value('titulo')
+                        : \App\Models\Conversacion::tituloDesde($message),
+                ]
             );
-            $termino = trim($termino);
-
-            if (strlen($termino) >= 2) {
-                $proyectos = \App\Models\Proyecto::where('user_id', $user->id)
-                    ->where('nombre', 'like', "%{$termino}%")
-                    ->limit(5)->get();
-
-                if ($proyectos->count() > 0) {
-                    return response()->json([
-                        'success'    => true,
-                        'response'   => "Ho trovato {$proyectos->count()} progetto/i:",
-                        'action'     => 'mostrar_proyectos',
-                        'params'     => ['proyectos' => $proyectos->map(fn($p) => [
-                            'id'     => $p->id,
-                            'nombre' => $p->nombre,
-                        ])],
-                        'session_id' => $sessionId,
-                    ]);
-                }
-            }
+ 
+            return response()->json([
+                'success'    => true,
+                'response'   => $resolved['message'],
+                'action'     => $resolved['action'],
+                'params'     => $resolved['params'],
+                'session_id' => $sessionId,
+            ]);
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // BÚSQUEDA DE DOCUMENTO
-        // ═══════════════════════════════════════════════════════════
-
-        if (preg_match('/cerco|cerca|trova|sto cercando|searching|busco|find/i', $message)) {
-
-            $termino = preg_replace(
-                '/^.*?(cerco|cerca|trova|sto cercando|busco)\s+(un\s+)?(documento|file|doc)?\s*(con\s+)?(questo:?|questi:?)?\s*/i',
-                '',
-                $message
-            );
-            $termino = trim($termino);
-            if (strlen($termino) < 2) $termino = $message;
-
-            $palabras = array_filter(explode(' ', $termino), fn($p) => strlen($p) >= 2);
-
-            if (!empty($palabras)) {
-                $docs = \App\Models\Documento::with(['proyecto', 'categoria', 'tipologia'])
-                    ->where('user_id', $user->id)
-                    ->where(function ($q) use ($palabras, $termino) {
-                        $q->where('descripcion', 'like', "%{$termino}%")
-                            ->orWhere('nombre', 'like', "%{$termino}%");
-
-                        foreach (array_filter($palabras, fn($p) => strlen($p) >= 4) as $palabra) {
-                            if (in_array(strtolower($palabra), [
-                                'questo',
-                                'questa',
-                                'numero',
-                                'ordine',
-                                'valore',
-                                'documento',
-                                'file',
-                                'cerca',
-                                'cerco',
-                                'nella',
-                            ])) continue;
-                            $q->orWhere('descripcion', 'like', "%{$palabra}%")
-                                ->orWhere('nombre', 'like', "%{$palabra}%");
-                        }
-                    })
-                    ->limit(8)->get();
-
-                if ($docs->count() > 0) {
-                    return response()->json([
-                        'success'    => true,
-                        'response'   => "Ho trovato {$docs->count()} documento/i che potrebbero corrispondere:",
-                        'action'     => 'mostrar_documentos',
-                        'params'     => ['docs' => $docs->map(fn($d) => [
-                            'id'          => $d->id,
-                            'nombre'      => $d->nombre,
-                            'mime_type'   => $d->mime_type,
-                            'categoria'   => $d->categoria?->nombre,
-                            'tipologia'   => $d->tipologia?->nombre,
-                            'proyecto_id' => $d->proyecto_id,
-                            'proyecto'    => $d->proyecto?->nombre,
-                            'descripcion' => $d->descripcion,
-                        ])],
-                        'session_id' => $sessionId,
-                    ]);
-                }
-            }
-        }
 
         // ═══════════════════════════════════════════════════════════
         // LLAMADA A CLAUDE
@@ -159,6 +95,8 @@ class ChatController extends Controller
                 $result = $this->callClaude($historial, $contexto, $user, $esNuevo);
             }
 
+            // POST-PROCESADOR: enriquecer respuesta del AI con datos reales
+            $result = $this->intentResolver->resolveFromAI($result, $user);
 
             $historial[] = ['role' => 'assistant', 'content' => $result['message']];
             if (count($historial) > 20) $historial = array_slice($historial, -20);
@@ -189,7 +127,7 @@ class ChatController extends Controller
             Log::error('ChatController error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'error'   => 'Errore nella comunicazione con l\'AI.',
+                'error' => 'Il servizio AI è temporaneamente sovraccarico. Riprova tra qualche secondo.'
             ], 500);
         }
     }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Docum24 — Accedi</title>
-    <link rel="shortcut icon" type="image/png" href="{{ url('images/logo.png') }}">
+    <link rel="shortcut icon" type="image/png" href="{{ url('images/icon.png') }}">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|instrument-serif:400i" rel="stylesheet" />
     <link rel="manifest" href="/manifest.json">
@@ -15,6 +15,13 @@
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+    }
+    </script>
+
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -94,11 +101,14 @@
 <body>
 
 <nav class="topbar">
-    <a class="nav-logo" href="/"><div class="nav-dot"></div>Docum24</a>
+    <a class="nav-logo" href="/">
+        <img src="{{ asset('images/logo.png') }}" alt="Docum24" style="height:30px;">
+    </a>
     <div style="font-size:13px;">
         Non hai un account? <a href="{{ route('register') }}" style="color:var(--ink); font-weight:600;">Registrati gratis</a>
     </div>
 </nav>
+
 
 <div class="page-wrap">
     <div class="left-panel">
@@ -111,7 +121,7 @@
 
     <div class="right-panel">
         <div class="form-header">
-            <h1>Accedi a Docum24</h1>
+            <h1>Accedi a <img src="{{ asset('images/logo.png') }}" alt="Docum24" style="height:30px; vertical-align:middle;"></h1>
             <p>Inserisci le tue credenziali per entrare.</p>
         </div>
 

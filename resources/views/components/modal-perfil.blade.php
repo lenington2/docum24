@@ -6,7 +6,7 @@
         <!-- Header -->
         <div style="padding:20px 24px;border-bottom:1px solid var(--incoming-chat-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:12px;">
-                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;" id="perfil-avatar">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#f53003,#cc0000);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;" id="perfil-avatar">
                     {{ strtoupper(substr(auth()->user()->name, 0, 2)) }}
                 </div>
                 <div>
