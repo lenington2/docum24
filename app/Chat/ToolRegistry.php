@@ -27,6 +27,7 @@ class ToolRegistry
         Tools\ManageEntities::class,
         Tools\GenerateReport::class,
         Tools\ToggleSetting::class,
+        Tools\NavigateUI::class,
     ];
 
     /**
