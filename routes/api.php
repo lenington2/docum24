@@ -70,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // AI
     Route::post('/claude/analizar', [ClaudeController::class, 'analizarYGuardar']);
     Route::post('/chat/send', [ChatController::class, 'send']);
+    Route::post('/chat/v2/send', [ChatController::class, 'sendV2']);
     Route::post('/user/business-prompt', [ChatController::class, 'generarBusinessPrompt']);
 
     // Conversaciones

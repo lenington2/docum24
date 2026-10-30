@@ -546,4 +546,26 @@ FORMATO RISPOSTA:
             'referencias' => $referencias,
         ];
     }
+
+    /**
+     * Chat v2 — Usa tool_use nativo de Claude.
+     * Endpoint: POST /api/chat/v2/send
+     */
+    public function sendV2(Request $request)
+    {
+        $request->validate([
+            'message'    => 'required|string|max:2000',
+            'session_id' => 'nullable|string',
+        ]);
+
+        $user      = Auth::user();
+        $message   = $request->message;
+        $sessionId = $request->session_id ?? uniqid('chat_v2_');
+        $esNuevo   = $request->boolean('es_nuevo', false);
+
+        $orchestrator = new \App\Chat\ChatOrchestrator();
+        $result = $orchestrator->handle($message, $user, $sessionId, $esNuevo);
+
+        return response()->json($result);
+    }
 }
