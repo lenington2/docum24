@@ -363,9 +363,9 @@ class DocumentoController extends Controller
             $filePath = Storage::disk("local")->path($doc->archivo);
             if (!file_exists($filePath)) continue;
 
-            $progetto  = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->proyecto?->nombre ?? "Senza Progetto");
-            $categoria = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->categoria?->nombre ?? "Senza Categoria");
-            $tipologia = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->tipologia?->nombre ?? "Senza Tipologia");
+            $progetto  = preg_replace('/[\/\\\\:*?"<>|]/', '_', $doc->proyecto?->nombre ?? 'Senza Progetto');
+            $categoria = preg_replace('/[\/\\\\:*?"<>|]/', '_', $doc->categoria?->nombre ?? 'Senza Categoria');
+            $tipologia = preg_replace('/[\/\\\\:*?"<>|]/', '_', $doc->tipologia?->nombre ?? 'Senza Tipologia');
 
             $zip->addFile($filePath, "{$progetto}/{$categoria}/{$tipologia}/{$doc->nombre}");
             $fileCount++;
