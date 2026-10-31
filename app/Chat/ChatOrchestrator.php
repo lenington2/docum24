@@ -9,19 +9,16 @@ use App\Models\Documento;
 use App\Models\Conversacion;
 
 /**
- * ChatOrchestrator — Motor principal del chat v2 (optimizado).
+ * ChatOrchestrator — Motor principal del chat v2.
  *
- * Cambios clave vs v1:
- *  - El historial guarda TEXTO resumido de tool_use (no raw blocks)
- *    para evitar errores de tool_use_id huérfanos al recortar.
- *  - Loop de hasta 3 iteraciones de tool_use (por si Claude encadena).
- *  - System prompt más enfático sobre usar tools SIEMPRE para acciones.
- *  - sanitizeHistorial respeta content arrays (tool_use blocks).
+ * Flujo:
+ *  1. Enviar historial + mensaje a Claude con tools
+ *  2. Si Claude usa tools → ejecutar → segunda llamada para resumen
+ *  3. Guardar en historial solo texto plano (nunca raw tool blocks)
  */
 class ChatOrchestrator
 {
     private \App\Services\TokenService $tokenService;
-    private const MAX_TOOL_ROUNDS = 3;
 
     public function __construct()
     {
@@ -41,109 +38,70 @@ class ChatOrchestrator
         $frontendActions = [];
 
         try {
-            // --- Loop de tool_use (máximo MAX_TOOL_ROUNDS) ---
             $messages = $this->sanitizeHistorial($historial);
-            $finalText = '';
 
-            for ($round = 0; $round < self::MAX_TOOL_ROUNDS; $round++) {
-                $response = $this->callClaude($systemPrompt, $messages, $toolDefinitions, $user);
+            // === Primera llamada a Claude (con tools) ===
+            $response = $this->callClaude($systemPrompt, $messages, $toolDefinitions, $user);
 
-                $content    = $response->json('content', []);
-                $stopReason = $response->json('stop_reason', 'end_turn');
+            $content    = $response->json('content', []);
+            $stopReason = $response->json('stop_reason', 'end_turn');
 
-                // Extraer texto de esta respuesta
-                $roundText = '';
-                foreach ($content as $block) {
-                    if ($block['type'] === 'text') {
-                        $roundText .= $block['text'];
-                    }
-                }
-
-                // Si NO hay tool_use, terminamos
-                if ($stopReason !== 'tool_use') {
-                    $finalText = $roundText;
-                    // Guardar respuesta en historial
-                    $historial[] = ['role' => 'assistant', 'content' => $roundText];
-                    break;
-                }
-
-                // --- Hay tool_use: ejecutar tools ---
-                $toolResults = [];
-                foreach ($content as $block) {
-                    if ($block['type'] !== 'tool_use') continue;
-
-                    $tool = ToolRegistry::get($block['name']);
-                    if ($tool) {
-                        $result = $tool->execute($block['input'] ?? [], $user);
-
-                        $toolResults[] = [
-                            'type'        => 'tool_result',
-                            'tool_use_id' => $block['id'],
-                            'content'     => $result['tool_result'] ?? json_encode($result),
-                        ];
-
-                        if (!empty($result['frontend_action'])) {
-                            $frontendActions[] = [
-                                'action'  => $result['frontend_action'],
-                                'payload' => $result['frontend_payload'] ?? [],
-                            ];
-                        }
-                    } else {
-                        $toolResults[] = [
-                            'type'        => 'tool_result',
-                            'tool_use_id' => $block['id'],
-                            'content'     => "Errore: tool '{$block['name']}' non trovato.",
-                            'is_error'    => true,
-                        ];
-                    }
-                }
-
-                // Guardar en historial como TEXTO (no raw blocks)
-                // para evitar errores de tool_use_id huérfanos al recortar
-                $toolSummary = [];
-                foreach ($content as $block) {
-                    if ($block['type'] === 'text' && !empty($block['text'])) {
-                        $toolSummary[] = $block['text'];
-                    }
-                    if ($block['type'] === 'tool_use') {
-                        $toolSummary[] = "[Usato tool: {$block['name']}]";
-                    }
-                }
-                $resultSummary = [];
-                foreach ($toolResults as $tr) {
-                    $resultSummary[] = $tr['content'] ?? '';
-                }
-                $historial[] = ['role' => 'assistant', 'content' => implode(' ', $toolSummary)];
-                $historial[] = ['role' => 'user',      'content' => 'Risultato: ' . implode(' | ', $resultSummary)];
-
-                // Reconstruir messages para la siguiente iteración
-                $messages = $this->sanitizeHistorial($historial);
-            }
-
-            // Si terminó por max rounds sin texto final, generar resumen
-            if (empty($finalText) && !empty($frontendActions)) {
-                $finalText = $this->generateSummary($systemPrompt, $messages, $user);
+            // Si Claude NO usó tools → respuesta directa
+            if ($stopReason !== 'tool_use') {
+                $finalText = $this->extractText($content);
                 $historial[] = ['role' => 'assistant', 'content' => $finalText];
+
+                $this->saveHistorial($cacheKey, $historial, $sessionId, $user, $message);
+
+                return [
+                    'success'    => true,
+                    'message'    => $finalText,
+                    'actions'    => [],
+                    'session_id' => $sessionId,
+                ];
             }
 
-            // --- Recortar historial (últimos 30 mensajes) ---
-            if (count($historial) > 30) {
-                $historial = array_slice($historial, -30);
-            }
-            cache()->put($cacheKey, $historial, now()->addHours(2));
+            // === Claude usó tools → ejecutar ===
+            $toolResults = $this->executeTools($content, $user, $frontendActions);
 
-            // Persistir conversación
-            Conversacion::updateOrCreate(
-                ['session_id' => $sessionId],
-                [
-                    'user_id'           => $user->id,
-                    'historial'         => $historial,
-                    'ultimo_mensaje_at' => now(),
-                    'titulo'            => Conversacion::where('session_id', $sessionId)->exists()
-                        ? Conversacion::where('session_id', $sessionId)->value('titulo')
-                        : Conversacion::tituloDesde($message),
-                ]
-            );
+            // === Segunda llamada: enviar tool_results para que Claude resuma ===
+            // Aquí SÍ enviamos los raw blocks (tool_use + tool_result) pero
+            // solo para esta llamada, nunca se guardan en historial.
+            $secondMessages = $messages;
+            $secondMessages[] = ['role' => 'assistant', 'content' => $content];
+            $secondMessages[] = ['role' => 'user',      'content' => $toolResults];
+
+            $secondResponse = $this->callClaude($systemPrompt, $secondMessages, $toolDefinitions, $user);
+            $secondContent  = $secondResponse->json('content', []);
+            $secondStop     = $secondResponse->json('stop_reason', 'end_turn');
+
+            // Si la segunda respuesta TAMBIÉN usa tools → ejecutar
+            if ($secondStop === 'tool_use') {
+                $moreToolResults = $this->executeTools($secondContent, $user, $frontendActions);
+
+                $thirdMessages = $secondMessages;
+                $thirdMessages[] = ['role' => 'assistant', 'content' => $secondContent];
+                $thirdMessages[] = ['role' => 'user',      'content' => $moreToolResults];
+
+                $thirdResponse = $this->callClaude(
+                    $systemPrompt . "\n\nRispondi brevemente confermando le azioni eseguite.",
+                    $thirdMessages,
+                    [], // sin tools para forzar texto
+                    $user
+                );
+                $finalText = $this->extractText($thirdResponse->json('content', []));
+            } else {
+                $finalText = $this->extractText($secondContent);
+            }
+
+            if (empty($finalText)) {
+                $finalText = 'Fatto!';
+            }
+
+            // === Guardar en historial solo TEXTO ===
+            $historial[] = ['role' => 'assistant', 'content' => $finalText];
+
+            $this->saveHistorial($cacheKey, $historial, $sessionId, $user, $message);
 
             return [
                 'success'    => true,
@@ -167,23 +125,73 @@ class ChatOrchestrator
         }
     }
 
-    // ─── API call ────────────────────────────────────────
+    // ─── Helpers ─────────────────────────────────────────
+
+    private function extractText(array $content): string
+    {
+        $parts = [];
+        foreach ($content as $block) {
+            if (($block['type'] ?? '') === 'text' && !empty($block['text'])) {
+                $parts[] = $block['text'];
+            }
+        }
+        return implode("\n", $parts);
+    }
+
+    private function executeTools(array $content, $user, array &$frontendActions): array
+    {
+        $toolResults = [];
+        foreach ($content as $block) {
+            if (($block['type'] ?? '') !== 'tool_use') continue;
+
+            $tool = ToolRegistry::get($block['name']);
+            if ($tool) {
+                $result = $tool->execute($block['input'] ?? [], $user);
+
+                $toolResults[] = [
+                    'type'        => 'tool_result',
+                    'tool_use_id' => $block['id'],
+                    'content'     => $result['tool_result'] ?? json_encode($result),
+                ];
+
+                if (!empty($result['frontend_action'])) {
+                    $frontendActions[] = [
+                        'action'  => $result['frontend_action'],
+                        'payload' => $result['frontend_payload'] ?? [],
+                    ];
+                }
+            } else {
+                $toolResults[] = [
+                    'type'        => 'tool_result',
+                    'tool_use_id' => $block['id'],
+                    'content'     => "Errore: tool '{$block['name']}' non trovato.",
+                    'is_error'    => true,
+                ];
+            }
+        }
+        return $toolResults;
+    }
 
     private function callClaude(string $system, array $messages, array $tools, $user): \Illuminate\Http\Client\Response
     {
+        $payload = [
+            'model'      => 'claude-haiku-4-5-20251001',
+            'max_tokens' => 1500,
+            'system'     => $system,
+            'messages'   => $messages,
+        ];
+
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
+        }
+
         $response = Http::withHeaders([
             'x-api-key'         => config('services.anthropic.key'),
             'anthropic-version' => '2023-06-01',
             'content-type'      => 'application/json',
         ])
         ->timeout(30)
-        ->post('https://api.anthropic.com/v1/messages', [
-            'model'      => 'claude-haiku-4-5-20251001',
-            'max_tokens' => 1500,
-            'system'     => $system,
-            'messages'   => $messages,
-            'tools'      => $tools,
-        ]);
+        ->post('https://api.anthropic.com/v1/messages', $payload);
 
         if (!$response->successful()) {
             throw new \Exception('Claude API error: ' . $response->status() . ' — ' . $response->body());
@@ -202,23 +210,25 @@ class ChatOrchestrator
         return $response;
     }
 
-    /**
-     * Generar resumen cuando el loop termina sin texto final.
-     */
-    private function generateSummary(string $system, array $messages, $user): string
+    private function saveHistorial(string $cacheKey, array $historial, string $sessionId, $user, string $message): void
     {
-        $response = $this->callClaude(
-            $system . "\n\nRispondi brevemente confermando l'azione eseguita. Non usare tool.",
-            $messages,
-            [], // sin tools para forzar texto
-            $user
-        );
-
-        $text = '';
-        foreach ($response->json('content', []) as $block) {
-            if ($block['type'] === 'text') $text .= $block['text'];
+        // Recortar (últimos 20 mensajes)
+        if (count($historial) > 20) {
+            $historial = array_slice($historial, -20);
         }
-        return $text ?: 'Fatto!';
+        cache()->put($cacheKey, $historial, now()->addHours(2));
+
+        Conversacion::updateOrCreate(
+            ['session_id' => $sessionId],
+            [
+                'user_id'           => $user->id,
+                'historial'         => $historial,
+                'ultimo_mensaje_at' => now(),
+                'titulo'            => Conversacion::where('session_id', $sessionId)->exists()
+                    ? Conversacion::where('session_id', $sessionId)->value('titulo')
+                    : Conversacion::tituloDesde($message),
+            ]
+        );
     }
 
     // ─── System prompt ───────────────────────────────────
@@ -239,6 +249,7 @@ REGOLE FONDAMENTALI:
 7. Per creare progetto/categoria/tipologia → usa create_project / create_category / create_typology.
 8. Quando l'utente chiede INFORMAZIONI o fa domande generali, rispondi in testo.
 9. Non chiedere conferme: esegui subito.
+10. Sii conciso: dopo un'azione, conferma in una frase breve.
 
 CONTESTO:
 {$contexto}";
@@ -302,14 +313,7 @@ CONTESTO:
     // ─── Historial ───────────────────────────────────────
 
     /**
-     * Sanitizar historial preservando bloques tool_use/tool_result.
-     *
-     * content puede ser:
-     *   - string (texto normal)
-     *   - array  (bloques tool_use o tool_result)
-     *
-     * Alternancia: solo fusiona strings con strings del mismo rol.
-     * Arrays (tool blocks) se dejan intactos.
+     * Sanitizar historial: solo texto plano, alternancia user/assistant.
      */
     private function sanitizeHistorial(array $historial): array
     {
@@ -322,18 +326,13 @@ CONTESTO:
 
             if (!in_array($role, ['user', 'assistant'])) continue;
 
-            // Forzar content a string (seguridad contra arrays residuales)
+            // Forzar content a string
             if (!is_string($content)) {
                 if (is_array($content)) {
-                    // Extraer texto de bloques
                     $texts = [];
                     foreach ($content as $block) {
                         if (is_array($block) && ($block['type'] ?? '') === 'text') {
                             $texts[] = $block['text'] ?? '';
-                        } elseif (is_array($block) && ($block['type'] ?? '') === 'tool_use') {
-                            $texts[] = "[tool: {$block['name']}]";
-                        } elseif (is_array($block) && ($block['type'] ?? '') === 'tool_result') {
-                            $texts[] = $block['content'] ?? '';
                         }
                     }
                     $content = implode(' ', array_filter($texts)) ?: 'Ok.';
@@ -342,7 +341,9 @@ CONTESTO:
                 }
             }
 
-            // Fusionar mensajes consecutivos del mismo rol
+            if (empty(trim($content))) continue;
+
+            // Fusionar consecutivos del mismo rol
             if ($role === $lastRole && !empty($clean)) {
                 $clean[count($clean) - 1]['content'] .= "\n" . $content;
                 continue;
@@ -352,7 +353,7 @@ CONTESTO:
             $lastRole = $role;
         }
 
-        // El primer mensaje debe ser de user
+        // Primer mensaje debe ser user
         while (!empty($clean) && $clean[0]['role'] !== 'user') {
             array_shift($clean);
         }
