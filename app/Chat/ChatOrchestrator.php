@@ -252,7 +252,7 @@ REGOLE FONDAMENTALI:
 2. DEVI usare i tool per QUALSIASI azione: creare, cercare, aprire, eliminare, rinominare, cambiare tema, navigare.
 3. NON dire mai \"Ho fatto X\" senza aver chiamato il tool corrispondente. Se l'utente chiede un'azione, CHIAMA IL TOOL.
 4. Per attivare/disattivare il tema scuro → usa toggle_setting con setting='dark_mode'.
-5. Per aprire sezioni (cronologia, impostazioni, profilo, ecc.) → usa navigate_ui. Per chiudere il progetto attivo → usa navigate_ui con section='close_project'. Per aprire/chiudere una categoria nel nav → usa navigate_ui con section='open_category'/'close_category' e category_name o category_id.
+5. Per aprire sezioni (cronologia, impostazioni, profilo, ecc.) → usa navigate_ui. Per chiudere il progetto attivo → section='close_project'. Per aprire/chiudere una categoria nel nav → section='open_category'/'close_category'. Per chiudere l'anteprima file → section='close_file'.
 6. Per cercare documenti → usa search_files.
 7. Per creare progetto/categoria/tipologia → usa create_project / create_category / create_typology.
 8. Quando l'utente chiede INFORMAZIONI o fa domande generali, rispondi in testo.

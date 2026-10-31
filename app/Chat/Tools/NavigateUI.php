@@ -30,8 +30,9 @@ class NavigateUI implements ChatTool
                             'close_project',
                             'open_category',
                             'close_category',
+                            'close_file',
                         ],
-                        'description' => "Sezione da aprire: conversations, history, settings, profile, company, support, team, deadlines, report, new_chat, close_project, open_category (apre una categoria nel nav), close_category (chiude una categoria nel nav)",
+                        'description' => "Sezione da aprire: conversations, history, settings, profile, company, support, team, deadlines, report, new_chat, close_project, open_category, close_category, close_file (chiude l'anteprima del file)",
                     ],
                     'filter' => [
                         'type' => 'string',
@@ -73,6 +74,7 @@ class NavigateUI implements ChatTool
             'report'        => ['action' => 'open_report',        'label' => 'Report'],
             'new_chat'      => ['action' => 'new_chat',           'label' => 'Nuova chat'],
             'close_project' => ['action' => 'close_project',      'label' => 'Lista progetti'],
+            'close_file'    => ['action' => 'close_file',         'label' => 'Anteprima file'],
         ];
 
         // Handle open/close category specially
