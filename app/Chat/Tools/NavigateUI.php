@@ -33,7 +33,11 @@ class NavigateUI implements ChatTool
                     'filter' => [
                         'type' => 'string',
                         'enum' => ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'],
-                        'description' => 'Filtro temporale opzionale (per cronologia, conversazioni, scadenze)',
+                        'description' => 'Filtro temporale opzionale (per cronologia, scadenze)',
+                    ],
+                    'query' => [
+                        'type' => 'string',
+                        'description' => "Termine di ricerca per cercare conversazioni specifiche (es. 'contratti', 'fatture'). Usa con section=conversations.",
                     ],
                 ],
                 'required' => ['section'],
@@ -68,6 +72,9 @@ class NavigateUI implements ChatTool
         }
 
         $result = "Apro {$info['label']}.";
+        if (!empty($input['query']) && $section === 'conversations') {
+            $result = "Cerco nelle conversazioni: '{$input['query']}'.";
+        }
         if ($filter) {
             $filterLabels = [
                 'today'      => 'di oggi',
@@ -80,12 +87,14 @@ class NavigateUI implements ChatTool
             $result = "Apro {$info['label']} {$filterLabels[$filter]}.";
         }
 
+        $payload = [];
+        if ($filter) $payload['filter'] = $filter;
+        if (!empty($input['query'])) $payload['query'] = $input['query'];
+
         return [
             'tool_result'      => $result,
             'frontend_action'  => $info['action'],
-            'frontend_payload' => [
-                'filter' => $filter,
-            ],
+            'frontend_payload' => $payload,
         ];
     }
 }
