@@ -28,8 +28,10 @@ class NavigateUI implements ChatTool
                             'report',
                             'new_chat',
                             'close_project',
+                            'open_category',
+                            'close_category',
                         ],
-                        'description' => "Sezione da aprire: conversations (conversazioni), history (cronologia/attività), settings (impostazioni), profile (profilo), company (azienda), support (supporto), team (gestione team), deadlines (scadenze), report (report), new_chat (nuova chat), close_project (chiudi progetto attivo e torna alla lista progetti)",
+                        'description' => "Sezione da aprire: conversations, history, settings, profile, company, support, team, deadlines, report, new_chat, close_project, open_category (apre una categoria nel nav), close_category (chiude una categoria nel nav)",
                     ],
                     'filter' => [
                         'type' => 'string',
@@ -39,6 +41,14 @@ class NavigateUI implements ChatTool
                     'query' => [
                         'type' => 'string',
                         'description' => "Termine di ricerca per cercare conversazioni specifiche (es. 'contratti', 'fatture'). Usa con section=conversations.",
+                    ],
+                    'category_id' => [
+                        'type' => 'integer',
+                        'description' => 'ID della categoria da aprire/chiudere nel nav. Usa con section=open_category o close_category.',
+                    ],
+                    'category_name' => [
+                        'type' => 'string',
+                        'description' => 'Nome della categoria (alternativa a category_id). Usa con section=open_category o close_category.',
                     ],
                 ],
                 'required' => ['section'],
@@ -64,6 +74,39 @@ class NavigateUI implements ChatTool
             'new_chat'      => ['action' => 'new_chat',           'label' => 'Nuova chat'],
             'close_project' => ['action' => 'close_project',      'label' => 'Lista progetti'],
         ];
+
+        // Handle open/close category specially
+        if (in_array($section, ['open_category', 'close_category'])) {
+            $catId = $input['category_id'] ?? null;
+            $catName = $input['category_name'] ?? null;
+
+            if (!$catId && $catName) {
+                $cat = \App\Models\Categoria::whereHas('proyecto', fn($q) => $q->where('user_id', $user->id))
+                    ->whereRaw('LOWER(nombre) LIKE ?', ['%' . strtolower(trim($catName)) . '%'])
+                    ->first();
+                $catId = $cat?->id;
+                $catName = $cat?->nombre ?? $catName;
+            } elseif ($catId) {
+                $cat = \App\Models\Categoria::find($catId);
+                $catName = $cat?->nombre ?? "ID:{$catId}";
+            }
+
+            if (!$catId) {
+                return ['tool_result' => "Categoria non trovata. Specifica nome o ID."];
+            }
+
+            $isOpen = $section === 'open_category';
+            $label = $isOpen ? 'Aperta' : 'Chiusa';
+
+            return [
+                'tool_result' => "{$label} la categoria '{$catName}'.",
+                'frontend_action' => 'toggle_category',
+                'frontend_payload' => [
+                    'category_id' => $catId,
+                    'open' => $isOpen,
+                ],
+            ];
+        }
 
         $info = $sectionMap[$section] ?? null;
 
