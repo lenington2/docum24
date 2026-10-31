@@ -18,7 +18,7 @@ class ProyectoController extends Controller
         if ($user->current_team_id) {
             $team = \App\Models\Team::find($user->current_team_id);
             if ($team && $team->hasUser($user)) {
-                $proyectos = $team->proyectos()->withCount('categorias')->get();
+                $proyectos = $team->proyectos()->withCount(['categorias', 'documentos'])->get();
                 return response()->json($proyectos);
             }
         }
@@ -26,7 +26,7 @@ class ProyectoController extends Controller
         // Sin team activo: mostrar solo los proyectos propios sin team
         $proyectos = \App\Models\Proyecto::where('user_id', $user->id)
             ->whereNull('team_id')
-            ->withCount('categorias')
+            ->withCount(['categorias', 'documentos'])
             ->get();
 
         return response()->json($proyectos);
