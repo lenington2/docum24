@@ -29,6 +29,10 @@ class CreateTypology implements ChatTool
                         'type' => 'string',
                         'description' => 'Nome della categoria (alternativa a category_id)',
                     ],
+                    'project_id' => [
+                        'type' => 'integer',
+                        'description' => 'ID del progetto (dal contesto attivo)',
+                    ],
                     'project_name' => [
                         'type' => 'string',
                         'description' => 'Nome del progetto per disambiguare la categoria',
@@ -41,6 +45,8 @@ class CreateTypology implements ChatTool
 
     public function execute(array $input, $user): array
     {
+        \Log::info('CreateTypology input', ['input' => $input, 'user_id' => $user->id]);
+
         $name = trim($input['name']);
 
         // Resolver categoría
@@ -62,7 +68,29 @@ class CreateTypology implements ChatTool
             $categoria = $query->first();
         }
 
+        // Se non trovata e c'è project_id, prova a prendere l'unica categoria del progetto
+        if (!$categoria && !empty($input['project_id'])) {
+            $cats = Categoria::where('proyecto_id', $input['project_id'])
+                ->whereHas('proyecto', fn($q) => $q->where('user_id', $user->id))
+                ->get();
+            if ($cats->count() === 1) {
+                $categoria = $cats->first();
+            } elseif ($cats->count() > 1) {
+                $catNames = $cats->pluck('nombre')->join(', ');
+                \Log::warning('CreateTypology: multiple categories in project', ['cats' => $catNames]);
+                return [
+                    'tool_result' => "Il progetto ha più categorie: {$catNames}. Specifica in quale creare la tipologia.",
+                ];
+            }
+        }
+
         if (!$categoria) {
+            \Log::warning('CreateTypology: category not found', [
+                'category_id' => $input['category_id'] ?? null,
+                'category_name' => $input['category_name'] ?? null,
+                'project_name' => $input['project_name'] ?? null,
+                'project_id' => $input['project_id'] ?? null,
+            ]);
             return [
                 'tool_result' => "Non ho trovato la categoria. Specifica in quale categoria creare la tipologia.",
             ];

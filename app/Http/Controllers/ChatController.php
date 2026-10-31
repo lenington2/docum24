@@ -563,8 +563,13 @@ FORMATO RISPOSTA:
         $sessionId = $request->session_id ?? uniqid('chat_v2_');
         $esNuevo   = $request->boolean('es_nuevo', false);
 
+        $activeContext = [
+            'project_id'   => $request->input('active_project_id'),
+            'project_name' => $request->input('active_project_name'),
+        ];
+
         $orchestrator = new \App\Chat\ChatOrchestrator();
-        $result = $orchestrator->handle($message, $user, $sessionId, $esNuevo);
+        $result = $orchestrator->handle($message, $user, $sessionId, $esNuevo, $activeContext);
 
         return response()->json($result);
     }

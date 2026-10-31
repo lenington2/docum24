@@ -25,7 +25,7 @@ class ChatOrchestrator
         $this->tokenService = new \App\Services\TokenService();
     }
 
-    public function handle(string $message, $user, string $sessionId, bool $esNuevo = false): array
+    public function handle(string $message, $user, string $sessionId, bool $esNuevo = false, array $activeContext = []): array
     {
         $cacheKey  = "chat_v2_{$user->id}_{$sessionId}";
         $historial = cache()->get($cacheKey, []);
@@ -33,7 +33,7 @@ class ChatOrchestrator
         // Agregar mensaje del usuario
         $historial[] = ['role' => 'user', 'content' => $message];
 
-        $systemPrompt    = $this->buildSystemPrompt($user, $esNuevo);
+        $systemPrompt    = $this->buildSystemPrompt($user, $esNuevo, $activeContext);
         $toolDefinitions = ToolRegistry::definitions();
         $frontendActions = [];
 
@@ -145,8 +145,16 @@ class ChatOrchestrator
             if (($block['type'] ?? '') !== 'tool_use') continue;
 
             $tool = ToolRegistry::get($block['name']);
+            \Log::info('ChatOrchestrator: executing tool', [
+                'tool' => $block['name'],
+                'input' => $block['input'] ?? [],
+            ]);
             if ($tool) {
                 $result = $tool->execute($block['input'] ?? [], $user);
+                \Log::info('ChatOrchestrator: tool result', [
+                    'tool' => $block['name'],
+                    'result' => $result,
+                ]);
 
                 $toolResults[] = [
                     'type'        => 'tool_result',
@@ -233,7 +241,7 @@ class ChatOrchestrator
 
     // ─── System prompt ───────────────────────────────────
 
-    private function buildSystemPrompt($user, bool $esNuevo = false): string
+    private function buildSystemPrompt($user, bool $esNuevo = false, array $activeContext = []): string
     {
         $contexto = $this->buildContexto($user);
 
@@ -244,7 +252,7 @@ REGOLE FONDAMENTALI:
 2. DEVI usare i tool per QUALSIASI azione: creare, cercare, aprire, eliminare, rinominare, cambiare tema, navigare.
 3. NON dire mai \"Ho fatto X\" senza aver chiamato il tool corrispondente. Se l'utente chiede un'azione, CHIAMA IL TOOL.
 4. Per attivare/disattivare il tema scuro → usa toggle_setting con setting='dark_mode'.
-5. Per aprire sezioni (cronologia, impostazioni, profilo, ecc.) → usa navigate_ui.
+5. Per aprire sezioni (cronologia, impostazioni, profilo, ecc.) → usa navigate_ui. Per chiudere il progetto attivo e tornare alla lista → usa navigate_ui con section='close_project'.
 6. Per cercare documenti → usa search_files.
 7. Per creare progetto/categoria/tipologia → usa create_project / create_category / create_typology.
 8. Quando l'utente chiede INFORMAZIONI o fa domande generali, rispondi in testo.
@@ -253,6 +261,11 @@ REGOLE FONDAMENTALI:
 
 CONTESTO:
 {$contexto}";
+
+        // Aggiungere contesto attivo (progetto aperto nel frontend)
+        if (!empty($activeContext['project_id'])) {
+            $prompt .= "\n\nCONTESTO ATTIVO: L'utente sta visualizzando il progetto '{$activeContext['project_name']}' (ID:{$activeContext['project_id']}). Quando chiede di creare categorie o tipologie senza specificare il progetto, usa QUESTO progetto.";
+        }
 
         if ($esNuevo && !$user->business_type) {
             $prompt .= "\n\nL'utente è nuovo. Dai il benvenuto e chiedi il tipo di attività/business.";

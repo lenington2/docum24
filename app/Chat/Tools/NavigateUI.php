@@ -27,8 +27,9 @@ class NavigateUI implements ChatTool
                             'deadlines',
                             'report',
                             'new_chat',
+                            'close_project',
                         ],
-                        'description' => "Sezione da aprire: conversations (conversazioni), history (cronologia/attività), settings (impostazioni), profile (profilo), company (azienda), support (supporto), team (gestione team), deadlines (scadenze), report (report), new_chat (nuova chat)",
+                        'description' => "Sezione da aprire: conversations (conversazioni), history (cronologia/attività), settings (impostazioni), profile (profilo), company (azienda), support (supporto), team (gestione team), deadlines (scadenze), report (report), new_chat (nuova chat), close_project (chiudi progetto attivo e torna alla lista progetti)",
                     ],
                     'filter' => [
                         'type' => 'string',
@@ -61,6 +62,7 @@ class NavigateUI implements ChatTool
             'deadlines'     => ['action' => 'open_scadenze',      'label' => 'Scadenze'],
             'report'        => ['action' => 'open_report',        'label' => 'Report'],
             'new_chat'      => ['action' => 'new_chat',           'label' => 'Nuova chat'],
+            'close_project' => ['action' => 'close_project',      'label' => 'Lista progetti'],
         ];
 
         $info = $sectionMap[$section] ?? null;
