@@ -9,103 +9,79 @@ use App\Models\Documento;
 use App\Models\Conversacion;
 
 /**
- * ChatOrchestrator — Motor principal del chat v2.
+ * ChatOrchestrator — Motor principal del chat v2 (optimizado).
  *
- * Usa tool_use nativo de Claude en vez de JSON forzado.
- * Flujo:
- *   1. Construir contexto del usuario
- *   2. Enviar mensaje + tools a Claude
- *   3. Si Claude llama tools → ejecutarlos → enviar resultados → Claude responde
- *   4. Retornar mensaje + acciones frontend
+ * Cambios clave vs v1:
+ *  - El historial guarda bloques tool_use + tool_result completos
+ *    para que Claude recuerde que usó tools en turnos anteriores.
+ *  - Loop de hasta 3 iteraciones de tool_use (por si Claude encadena).
+ *  - System prompt más enfático sobre usar tools SIEMPRE para acciones.
+ *  - sanitizeHistorial respeta content arrays (tool_use blocks).
  */
 class ChatOrchestrator
 {
     private \App\Services\TokenService $tokenService;
+    private const MAX_TOOL_ROUNDS = 3;
 
     public function __construct()
     {
         $this->tokenService = new \App\Services\TokenService();
     }
 
-    /**
-     * Procesar un mensaje del usuario.
-     */
     public function handle(string $message, $user, string $sessionId, bool $esNuevo = false): array
     {
-        // 1. Recuperar historial
         $cacheKey  = "chat_v2_{$user->id}_{$sessionId}";
         $historial = cache()->get($cacheKey, []);
+
+        // Agregar mensaje del usuario
         $historial[] = ['role' => 'user', 'content' => $message];
 
-        // 2. Construir contexto y system prompt
-        $systemPrompt = $this->buildSystemPrompt($user, $esNuevo);
-
-        // 3. Obtener definiciones de tools
+        $systemPrompt    = $this->buildSystemPrompt($user, $esNuevo);
         $toolDefinitions = ToolRegistry::definitions();
+        $frontendActions = [];
 
-        // 4. Llamar a Claude con tool_use
         try {
-            $response = Http::withHeaders([
-                'x-api-key'         => config('services.anthropic.key'),
-                'anthropic-version' => '2023-06-01',
-                'content-type'      => 'application/json',
-            ])
-            ->timeout(30)
-            ->post('https://api.anthropic.com/v1/messages', [
-                'model'      => 'claude-haiku-4-5-20251001',
-                'max_tokens' => 1500,
-                'system'     => $systemPrompt,
-                'messages'   => $this->sanitizeHistorial($historial),
-                'tools'      => $toolDefinitions,
-            ]);
+            // --- Loop de tool_use (máximo MAX_TOOL_ROUNDS) ---
+            $messages = $this->sanitizeHistorial($historial);
+            $finalText = '';
 
-            if (!$response->successful()) {
-                throw new \Exception('Claude API error: ' . $response->status());
-            }
+            for ($round = 0; $round < self::MAX_TOOL_ROUNDS; $round++) {
+                $response = $this->callClaude($systemPrompt, $messages, $toolDefinitions, $user);
 
-            // Registrar tokens
-            $usage = $response->json('usage');
-            if ($usage) {
-                $this->tokenService->registrar(
-                    $user,
-                    'chat_v2',
-                    $usage['input_tokens'] ?? 0,
-                    $usage['output_tokens'] ?? 0,
-                    'claude-haiku-4-5-20251001'
-                );
-            }
+                $content    = $response->json('content', []);
+                $stopReason = $response->json('stop_reason', 'end_turn');
 
-            // 5. Procesar respuesta de Claude
-            $content  = $response->json('content', []);
-            $stopReason = $response->json('stop_reason', 'end_turn');
-
-            $textParts = [];
-            $frontendActions = [];
-            $toolResults = [];
-
-            foreach ($content as $block) {
-                if ($block['type'] === 'text') {
-                    $textParts[] = $block['text'];
+                // Extraer texto de esta respuesta
+                $roundText = '';
+                foreach ($content as $block) {
+                    if ($block['type'] === 'text') {
+                        $roundText .= $block['text'];
+                    }
                 }
 
-                if ($block['type'] === 'tool_use') {
-                    $toolName = $block['name'];
-                    $toolInput = $block['input'] ?? [];
-                    $toolUseId = $block['id'];
+                // Si NO hay tool_use, terminamos
+                if ($stopReason !== 'tool_use') {
+                    $finalText = $roundText;
+                    // Guardar respuesta en historial
+                    $historial[] = ['role' => 'assistant', 'content' => $roundText];
+                    break;
+                }
 
-                    // Ejecutar el tool
-                    $tool = ToolRegistry::get($toolName);
+                // --- Hay tool_use: ejecutar tools ---
+                $toolResults = [];
+                foreach ($content as $block) {
+                    if ($block['type'] !== 'tool_use') continue;
+
+                    $tool = ToolRegistry::get($block['name']);
                     if ($tool) {
-                        $result = $tool->execute($toolInput, $user);
+                        $result = $tool->execute($block['input'] ?? [], $user);
 
-                        // Guardar resultado para la segunda llamada a Claude
                         $toolResults[] = [
-                            'type'       => 'tool_result',
-                            'tool_use_id' => $toolUseId,
-                            'content'    => $result['tool_result'] ?? json_encode($result),
+                            'type'        => 'tool_result',
+                            'tool_use_id' => $block['id'],
+                            'content'     => $result['tool_result'] ?? json_encode($result),
                         ];
 
-                        // Acumular acciones frontend
                         if (!empty($result['frontend_action'])) {
                             $frontendActions[] = [
                                 'action'  => $result['frontend_action'],
@@ -114,69 +90,35 @@ class ChatOrchestrator
                         }
                     } else {
                         $toolResults[] = [
-                            'type'       => 'tool_result',
-                            'tool_use_id' => $toolUseId,
-                            'content'    => "Errore: tool '{$toolName}' non trovato.",
-                            'is_error'   => true,
+                            'type'        => 'tool_result',
+                            'tool_use_id' => $block['id'],
+                            'content'     => "Errore: tool '{$block['name']}' non trovato.",
+                            'is_error'    => true,
                         ];
                     }
                 }
+
+                // Guardar en historial: respuesta con tool_use + resultados
+                $historial[] = ['role' => 'assistant', 'content' => $content];
+                $historial[] = ['role' => 'user',      'content' => $toolResults];
+
+                // Reconstruir messages para la siguiente iteración
+                $messages = $this->sanitizeHistorial($historial);
             }
 
-            // 6. Si hubo tool_use, hacer segunda llamada para que Claude resuma
-            if ($stopReason === 'tool_use' && !empty($toolResults)) {
-                $secondMessages = $this->sanitizeHistorial($historial);
-                // Agregar la respuesta del asistente con tool_use
-                $secondMessages[] = ['role' => 'assistant', 'content' => $content];
-                // Agregar los resultados de los tools
-                $secondMessages[] = ['role' => 'user', 'content' => $toolResults];
-
-                $secondResponse = Http::withHeaders([
-                    'x-api-key'         => config('services.anthropic.key'),
-                    'anthropic-version' => '2023-06-01',
-                    'content-type'      => 'application/json',
-                ])
-                ->timeout(30)
-                ->post('https://api.anthropic.com/v1/messages', [
-                    'model'      => 'claude-haiku-4-5-20251001',
-                    'max_tokens' => 1000,
-                    'system'     => $systemPrompt,
-                    'messages'   => $secondMessages,
-                ]);
-
-                if ($secondResponse->successful()) {
-                    // Registrar tokens de la segunda llamada
-                    $usage2 = $secondResponse->json('usage');
-                    if ($usage2) {
-                        $this->tokenService->registrar(
-                            $user,
-                            'chat_v2',
-                            $usage2['input_tokens'] ?? 0,
-                            $usage2['output_tokens'] ?? 0,
-                            'claude-haiku-4-5-20251001'
-                        );
-                    }
-
-                    $secondContent = $secondResponse->json('content', []);
-                    $textParts = []; // Resetear - el resumen final es lo que importa
-                    foreach ($secondContent as $block) {
-                        if ($block['type'] === 'text') {
-                            $textParts[] = $block['text'];
-                        }
-                    }
-                }
+            // Si terminó por max rounds sin texto final, generar resumen
+            if (empty($finalText) && !empty($frontendActions)) {
+                $finalText = $this->generateSummary($systemPrompt, $messages, $user);
+                $historial[] = ['role' => 'assistant', 'content' => $finalText];
             }
 
-            $finalMessage = implode("\n", $textParts);
-
-            // 7. Guardar en historial
-            $historial[] = ['role' => 'assistant', 'content' => $finalMessage];
-            if (count($historial) > 20) {
-                $historial = array_slice($historial, -20);
+            // --- Recortar historial (últimos 30 mensajes) ---
+            if (count($historial) > 30) {
+                $historial = array_slice($historial, -30);
             }
             cache()->put($cacheKey, $historial, now()->addHours(2));
 
-            // 8. Persistir conversación
+            // Persistir conversación
             Conversacion::updateOrCreate(
                 ['session_id' => $sessionId],
                 [
@@ -191,7 +133,7 @@ class ChatOrchestrator
 
             return [
                 'success'    => true,
-                'message'    => $finalMessage,
+                'message'    => $finalText,
                 'actions'    => $frontendActions,
                 'session_id' => $sessionId,
             ];
@@ -203,46 +145,97 @@ class ChatOrchestrator
             ]);
 
             return [
-                'success' => false,
-                'message' => 'Il servizio AI è temporaneamente sovraccarico. Riprova tra qualche secondo.',
-                'actions' => [],
+                'success'    => false,
+                'message'    => 'Il servizio AI è temporaneamente sovraccarico. Riprova tra qualche secondo.',
+                'actions'    => [],
                 'session_id' => $sessionId,
             ];
         }
     }
 
+    // ─── API call ────────────────────────────────────────
+
+    private function callClaude(string $system, array $messages, array $tools, $user): \Illuminate\Http\Client\Response
+    {
+        $response = Http::withHeaders([
+            'x-api-key'         => config('services.anthropic.key'),
+            'anthropic-version' => '2023-06-01',
+            'content-type'      => 'application/json',
+        ])
+        ->timeout(30)
+        ->post('https://api.anthropic.com/v1/messages', [
+            'model'      => 'claude-haiku-4-5-20251001',
+            'max_tokens' => 1500,
+            'system'     => $system,
+            'messages'   => $messages,
+            'tools'      => $tools,
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Claude API error: ' . $response->status() . ' — ' . $response->body());
+        }
+
+        $usage = $response->json('usage');
+        if ($usage) {
+            $this->tokenService->registrar(
+                $user, 'chat_v2',
+                $usage['input_tokens'] ?? 0,
+                $usage['output_tokens'] ?? 0,
+                'claude-haiku-4-5-20251001'
+            );
+        }
+
+        return $response;
+    }
+
     /**
-     * System prompt limpio — sin reglas de JSON, sin acciones listadas.
-     * Claude usa los tools para decidir qué hacer.
+     * Generar resumen cuando el loop termina sin texto final.
      */
+    private function generateSummary(string $system, array $messages, $user): string
+    {
+        $response = $this->callClaude(
+            $system . "\n\nRispondi brevemente confermando l'azione eseguita. Non usare tool.",
+            $messages,
+            [], // sin tools para forzar texto
+            $user
+        );
+
+        $text = '';
+        foreach ($response->json('content', []) as $block) {
+            if ($block['type'] === 'text') $text .= $block['text'];
+        }
+        return $text ?: 'Fatto!';
+    }
+
+    // ─── System prompt ───────────────────────────────────
+
     private function buildSystemPrompt($user, bool $esNuevo = false): string
     {
         $contexto = $this->buildContexto($user);
 
-        $prompt = "Sei Docum24 AI, l'assistente intelligente per la gestione documentale di {$user->name}.
+        $prompt = "Sei Docum24 AI, l'assistente di {$user->name} per la gestione documentale.
 
-REGOLE:
-- Rispondi SEMPRE in italiano
-- Sii diretto, conciso e utile
-- Usa i tool disponibili per eseguire azioni (creare, cercare, aprire, modificare, eliminare)
-- Quando l'utente chiede di FARE qualcosa (creare, aprire, cercare, eliminare), usa il tool appropriato IMMEDIATAMENTE senza chiedere conferme
-- Quando l'utente chiede INFORMAZIONI o ha domande, rispondi in testo naturale
-- Puoi chiamare più tool nella stessa risposta se necessario
+REGOLE FONDAMENTALI:
+1. Rispondi SEMPRE in italiano.
+2. DEVI usare i tool per QUALSIASI azione: creare, cercare, aprire, eliminare, rinominare, cambiare tema, navigare.
+3. NON dire mai \"Ho fatto X\" senza aver chiamato il tool corrispondente. Se l'utente chiede un'azione, CHIAMA IL TOOL.
+4. Per attivare/disattivare il tema scuro → usa toggle_setting con setting='dark_mode'.
+5. Per aprire sezioni (cronologia, impostazioni, profilo, ecc.) → usa navigate_ui.
+6. Per cercare documenti → usa search_files.
+7. Per creare progetto/categoria/tipologia → usa create_project / create_category / create_typology.
+8. Quando l'utente chiede INFORMAZIONI o fa domande generali, rispondi in testo.
+9. Non chiedere conferme: esegui subito.
 
 CONTESTO:
 {$contexto}";
 
         if ($esNuevo && !$user->business_type) {
-            $prompt .= "\n\nONBOARDING:
-L'utente è nuovo. Dai il benvenuto e chiedi che tipo di attività/business gestisce, per personalizzare l'esperienza.";
+            $prompt .= "\n\nL'utente è nuovo. Dai il benvenuto e chiedi il tipo di attività/business.";
         }
 
         return $prompt;
     }
 
-    /**
-     * Construir contexto del usuario (proyectos, documentos, etc.)
-     */
     private function buildContexto($user): string
     {
         $proyectos = Proyecto::where('user_id', $user->id)
@@ -276,7 +269,6 @@ L'utente è nuovo. Dai il benvenuto e chiedi che tipo di attività/business gest
             }
         }
 
-        // Últimos 3 documentos
         $ultimos = Documento::where('user_id', $user->id)
             ->with(['proyecto'])
             ->orderBy('created_at', 'desc')
@@ -293,9 +285,17 @@ L'utente è nuovo. Dai il benvenuto e chiedi che tipo di attività/business gest
         return $ctx;
     }
 
+    // ─── Historial ───────────────────────────────────────
+
     /**
-     * Sanitizar historial para la API de Claude.
-     * Asegura formato válido y alterna user/assistant.
+     * Sanitizar historial preservando bloques tool_use/tool_result.
+     *
+     * content puede ser:
+     *   - string (texto normal)
+     *   - array  (bloques tool_use o tool_result)
+     *
+     * Alternancia: solo fusiona strings con strings del mismo rol.
+     * Arrays (tool blocks) se dejan intactos.
      */
     private function sanitizeHistorial(array $historial): array
     {
@@ -303,22 +303,24 @@ L'utente è nuovo. Dai il benvenuto e chiedi che tipo di attività/business gest
         $lastRole = null;
 
         foreach ($historial as $msg) {
-            $role = $msg['role'] ?? 'user';
+            $role    = $msg['role'] ?? 'user';
             $content = $msg['content'] ?? '';
 
-            // Solo user y assistant (no system)
             if (!in_array($role, ['user', 'assistant'])) continue;
 
-            // Asegurar alternancia
-            if ($role === $lastRole) {
-                // Fusionar con el anterior
-                if (!empty($clean)) {
-                    $last = &$clean[count($clean) - 1];
-                    if (is_string($last['content']) && is_string($content)) {
-                        $last['content'] .= "\n" . $content;
-                    }
+            // Si mismo rol consecutivo y AMBOS son strings → fusionar
+            if ($role === $lastRole && !empty($clean)) {
+                $lastContent = $clean[count($clean) - 1]['content'];
+                if (is_string($lastContent) && is_string($content)) {
+                    $clean[count($clean) - 1]['content'] .= "\n" . $content;
                     continue;
                 }
+                // Si uno es array (tool blocks), NO fusionar — insertar separador
+                // Para mantener alternancia, insertar un msg del otro rol
+                $separator = ($role === 'user')
+                    ? ['role' => 'assistant', 'content' => 'Ok.']
+                    : ['role' => 'user',      'content' => 'Continua.'];
+                $clean[] = $separator;
             }
 
             $clean[] = ['role' => $role, 'content' => $content];
@@ -326,7 +328,7 @@ L'utente è nuovo. Dai il benvenuto e chiedi che tipo di attività/business gest
         }
 
         // El primer mensaje debe ser de user
-        if (!empty($clean) && $clean[0]['role'] !== 'user') {
+        while (!empty($clean) && $clean[0]['role'] !== 'user') {
             array_shift($clean);
         }
 
