@@ -323,7 +323,7 @@ class DocumentoController extends Controller
         return response()->download($zipPath, $zipNombre)->deleteFileAfterSend(true);
     }
 
-    public function checkSize(Request $request)
+public function checkSize(Request $request)
     {
         $ids = $request->input('ids', []);
 
@@ -331,28 +331,90 @@ class DocumentoController extends Controller
             ->where('user_id', Auth::id())
             ->get();
 
-        // Filtrar en PHP, no en SQL
-        $conTexto = $documentos->filter(
-            fn($d) =>
-            !is_null($d->contenido_texto) && $d->contenido_texto !== ''
-        );
+        $details = [];
+        $totalSizeMb = 0;
+        $totalPages = 0;
+        $leggibili = 0;
+        $nonLeggibili = 0;
+        $nonLeggibiliNomi = [];
 
-        $sinTexto = $documentos->filter(
-            fn($d) =>
-            is_null($d->contenido_texto) || $d->contenido_texto === ''
-        );
+        foreach ($documentos as $doc) {
+            $isPdf = str_contains($doc->mime_type ?? '', 'pdf');
+            $isImage = str_starts_with($doc->mime_type ?? '', 'image/');
+            $hasText = !empty($doc->contenido_texto);
 
-        $totalChars  = $conTexto->sum(fn($d) => strlen($d->contenido_texto));
-        $totalTokens = (int)($totalChars / 4);
+            $filePath = $doc->archivo;
+            $fileExists = \Illuminate\Support\Facades\Storage::disk('local')->exists($filePath);
+            $fileSize = $fileExists ? \Illuminate\Support\Facades\Storage::disk('local')->size($filePath) : 0;
+            $fileSizeMb = round($fileSize / 1024 / 1024, 2);
+
+            // Estimar páginas para PDFs
+            $estimatedPages = $isPdf ? max(1, (int)ceil($fileSize / 50000)) : 0;
+
+            // Determinar si es leggibile
+            $canRead = false;
+            $method = 'none';
+            $reason = '';
+
+            if ($isPdf && $fileExists) {
+                $canRead = true;
+                $method = 'pdf_nativo';
+                $totalPages += $estimatedPages;
+                $totalSizeMb += $fileSizeMb * 1.37; // base64 overhead
+            } elseif ($isImage && $fileExists) {
+                $canRead = true;
+                $method = 'immagine';
+                $totalSizeMb += $fileSizeMb * 1.37;
+            } elseif ($hasText) {
+                $canRead = true;
+                $method = 'testo_estratto';
+                $totalSizeMb += strlen($doc->contenido_texto) / 1024 / 1024;
+            } else {
+                if (!$fileExists) {
+                    $reason = 'File non trovato nel server';
+                } else {
+                    $reason = 'Formato non supportato per lettura diretta';
+                }
+            }
+
+            if ($canRead) {
+                $leggibili++;
+            } else {
+                $nonLeggibili++;
+                $nonLeggibiliNomi[] = $doc->nombre;
+            }
+
+            $details[] = [
+                'id' => $doc->id,
+                'nombre' => $doc->nombre,
+                'mime_type' => $doc->mime_type,
+                'size_mb' => $fileSizeMb,
+                'pages' => $estimatedPages,
+                'leggibile' => $canRead,
+                'metodo' => $method,
+                'motivo' => $reason,
+            ];
+        }
+
+        // Validaciones de límite
+        $warnings = [];
+        if ($totalSizeMb > 30) {
+            $warnings[] = "Dimensione totale ({$totalSizeMb} MB) supera il limite di 30 MB. Riduci il numero di documenti.";
+        }
+        if ($totalPages > 100) {
+            $warnings[] = "Totale pagine PDF (~{$totalPages}) supera il limite di 100. Riduci il numero di PDF.";
+        }
 
         return response()->json([
-            'count'              => $documentos->count(),
-            'con_texto'          => $conTexto->count(),
-            'sin_texto'          => $sinTexto->count(),
-            'sin_texto_nombres'  => $sinTexto->pluck('nombre')->values(),
-            'total_tokens'       => $totalTokens,
-            'dentro_limite'      => $totalTokens < 150000,
-            'sin_texto_ids' => $sinTexto->pluck('id')->values(),
+            'count'               => $documentos->count(),
+            'leggibili'           => $leggibili,
+            'non_leggibili'       => $nonLeggibili,
+            'non_leggibili_nomi'  => $nonLeggibiliNomi,
+            'total_size_mb'       => round($totalSizeMb, 2),
+            'total_pages'         => $totalPages,
+            'dentro_limite'       => $totalSizeMb <= 30 && $totalPages <= 100,
+            'warnings'            => $warnings,
+            'details'             => $details,
         ]);
     }
 
@@ -388,14 +450,16 @@ class DocumentoController extends Controller
         }
 
         try {
-            $service  = new \App\Services\ChatDocumentService();
-            $risposta = $service->chat($ids, $message, $historial);
+            $service = new \App\Services\ChatDocumentService();
+            $result  = $service->chat($ids, $message, $historial);
 
             return response()->json([
-                'success'  => true,
-                'response' => $risposta,
+                'success'   => true,
+                'response'  => $result['response'],
+                'meta'      => $result['meta'],
             ]);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('chatConDocumenti error', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'error'   => $e->getMessage(),
