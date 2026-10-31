@@ -55,6 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/documentos', [DocumentoController::class, 'store']);
     Route::post('/documentos/check-size', [DocumentoController::class, 'checkSize']);
     Route::post('/documentos/download-multiple', [DocumentoController::class, 'downloadMultiple']);
+    Route::post("/documentos/send-email", [DocumentoController::class, "sendEmail"]);
     Route::post('/chat/con-documenti', [DocumentoController::class, 'chatConDocumenti']);
     Route::get('/proyectos/{proyecto}/dataroom', [DocumentoController::class, 'porProyecto']);
     Route::delete('/documentos/{documento}', [DocumentoController::class, 'destroy']);

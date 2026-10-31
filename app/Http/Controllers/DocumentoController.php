@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\DocumentiCondivisi;
 use App\Models\Actividad;
 
 
@@ -323,6 +325,78 @@ class DocumentoController extends Controller
         return response()->download($zipPath, $zipNombre)->deleteFileAfterSend(true);
     }
 
+
+    public function sendEmail(Request $request)
+    {
+        $request->validate([
+            "ids"          => "required|array|min:1",
+            "ids.*"        => "integer|exists:documentos,id",
+            "destinatario" => "required|email",
+            "oggetto"      => "required|string|max:255",
+            "descrizione"  => "required|string|max:2000",
+        ]);
+
+        $documentos = Documento::whereIn("id", $request->ids)
+            ->where("user_id", Auth::id())
+            ->with(["proyecto", "categoria", "tipologia"])
+            ->get();
+
+        if ($documentos->isEmpty()) {
+            return response()->json(["message" => "Nessun documento trovato"], 404);
+        }
+
+        // Build ZIP
+        $zipNombre = "documenti_" . now()->format("Ymd_His") . ".zip";
+        $zipPath   = storage_path("app/temp/" . $zipNombre);
+
+        if (!file_exists(storage_path("app/temp"))) {
+            mkdir(storage_path("app/temp"), 0755, true);
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return response()->json(["message" => "Impossibile creare il ZIP"], 500);
+        }
+
+        $fileCount = 0;
+        foreach ($documentos as $doc) {
+            $filePath = Storage::disk("local")->path($doc->archivo);
+            if (!file_exists($filePath)) continue;
+
+            $progetto  = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->proyecto?->nombre ?? "Senza Progetto");
+            $categoria = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->categoria?->nombre ?? "Senza Categoria");
+            $tipologia = preg_replace("/[\/\\\\:*?"<>|]/", "_", $doc->tipologia?->nombre ?? "Senza Tipologia");
+
+            $zip->addFile($filePath, "{$progetto}/{$categoria}/{$tipologia}/{$doc->nombre}");
+            $fileCount++;
+        }
+        $zip->close();
+
+        if ($fileCount === 0) {
+            @unlink($zipPath);
+            return response()->json(["message" => "Nessun file valido da inviare"], 400);
+        }
+
+        try {
+            Mail::to($request->destinatario)->send(
+                new DocumentiCondivisi(
+                    oggetto:     $request->oggetto,
+                    descrizione: $request->descrizione,
+                    senderName:  Auth::user()->name,
+                    zipPath:     $zipPath,
+                    zipName:     $zipNombre,
+                )
+            );
+
+            @unlink($zipPath);
+
+            return response()->json(["message" => "Email inviata con successo a {$request->destinatario}"]);
+        } catch (\Exception $e) {
+            @unlink($zipPath);
+            Log::error("Errore invio email documenti: " . $e->getMessage());
+            return response()->json(["message" => "Errore durante l invio: " . $e->getMessage()], 500);
+        }
+    }
 public function checkSize(Request $request)
     {
         $ids = $request->input('ids', []);
