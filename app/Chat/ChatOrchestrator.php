@@ -12,8 +12,8 @@ use App\Models\Conversacion;
  * ChatOrchestrator — Motor principal del chat v2 (optimizado).
  *
  * Cambios clave vs v1:
- *  - El historial guarda bloques tool_use + tool_result completos
- *    para que Claude recuerde que usó tools en turnos anteriores.
+ *  - El historial guarda TEXTO resumido de tool_use (no raw blocks)
+ *    para evitar errores de tool_use_id huérfanos al recortar.
  *  - Loop de hasta 3 iteraciones de tool_use (por si Claude encadena).
  *  - System prompt más enfático sobre usar tools SIEMPRE para acciones.
  *  - sanitizeHistorial respeta content arrays (tool_use blocks).
@@ -98,9 +98,23 @@ class ChatOrchestrator
                     }
                 }
 
-                // Guardar en historial: respuesta con tool_use + resultados
-                $historial[] = ['role' => 'assistant', 'content' => $content];
-                $historial[] = ['role' => 'user',      'content' => $toolResults];
+                // Guardar en historial como TEXTO (no raw blocks)
+                // para evitar errores de tool_use_id huérfanos al recortar
+                $toolSummary = [];
+                foreach ($content as $block) {
+                    if ($block['type'] === 'text' && !empty($block['text'])) {
+                        $toolSummary[] = $block['text'];
+                    }
+                    if ($block['type'] === 'tool_use') {
+                        $toolSummary[] = "[Usato tool: {$block['name']}]";
+                    }
+                }
+                $resultSummary = [];
+                foreach ($toolResults as $tr) {
+                    $resultSummary[] = $tr['content'] ?? '';
+                }
+                $historial[] = ['role' => 'assistant', 'content' => implode(' ', $toolSummary)];
+                $historial[] = ['role' => 'user',      'content' => 'Risultato: ' . implode(' | ', $resultSummary)];
 
                 // Reconstruir messages para la siguiente iteración
                 $messages = $this->sanitizeHistorial($historial);
@@ -308,19 +322,30 @@ CONTESTO:
 
             if (!in_array($role, ['user', 'assistant'])) continue;
 
-            // Si mismo rol consecutivo y AMBOS son strings → fusionar
-            if ($role === $lastRole && !empty($clean)) {
-                $lastContent = $clean[count($clean) - 1]['content'];
-                if (is_string($lastContent) && is_string($content)) {
-                    $clean[count($clean) - 1]['content'] .= "\n" . $content;
-                    continue;
+            // Forzar content a string (seguridad contra arrays residuales)
+            if (!is_string($content)) {
+                if (is_array($content)) {
+                    // Extraer texto de bloques
+                    $texts = [];
+                    foreach ($content as $block) {
+                        if (is_array($block) && ($block['type'] ?? '') === 'text') {
+                            $texts[] = $block['text'] ?? '';
+                        } elseif (is_array($block) && ($block['type'] ?? '') === 'tool_use') {
+                            $texts[] = "[tool: {$block['name']}]";
+                        } elseif (is_array($block) && ($block['type'] ?? '') === 'tool_result') {
+                            $texts[] = $block['content'] ?? '';
+                        }
+                    }
+                    $content = implode(' ', array_filter($texts)) ?: 'Ok.';
+                } else {
+                    $content = (string)$content;
                 }
-                // Si uno es array (tool blocks), NO fusionar — insertar separador
-                // Para mantener alternancia, insertar un msg del otro rol
-                $separator = ($role === 'user')
-                    ? ['role' => 'assistant', 'content' => 'Ok.']
-                    : ['role' => 'user',      'content' => 'Continua.'];
-                $clean[] = $separator;
+            }
+
+            // Fusionar mensajes consecutivos del mismo rol
+            if ($role === $lastRole && !empty($clean)) {
+                $clean[count($clean) - 1]['content'] .= "\n" . $content;
+                continue;
             }
 
             $clean[] = ['role' => $role, 'content' => $content];
