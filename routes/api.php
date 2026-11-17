@@ -20,6 +20,12 @@ use App\Http\Controllers\ClaudeController;
 // ─── Auth (público) ────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
 
+// ─── Social Auth (público) ─────────────────────
+Route::get('/auth/{provider}/redirect', [\App\Http\Controllers\Api\SocialAuthController::class, 'redirect']);
+Route::get('/auth/{provider}/callback', [\App\Http\Controllers\Api\SocialAuthController::class, 'callback']);
+Route::post('/auth/{provider}/token', [\App\Http\Controllers\Api\SocialAuthController::class, 'tokenLogin']);
+
+
 // ─── Protegidas con Sanctum ────────────────────
 Route::middleware('auth:sanctum')->group(function () {
 
