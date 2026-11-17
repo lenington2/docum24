@@ -18,9 +18,15 @@ class SocialAuthController extends Controller
     {
         $this->validateProvider($provider);
 
-        return Socialite::driver($provider)
-            ->stateless()
-            ->redirect();
+        $driver = Socialite::driver($provider)->stateless();
+
+        // Facebook en modo desarrollo no soporta el scope 'email'
+        // hasta que la app esté publicada/verificada
+        if ($provider === 'facebook') {
+            $driver->scopes(['public_profile']);
+        }
+
+        return $driver->redirect();
     }
 
     /**
