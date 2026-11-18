@@ -241,6 +241,8 @@ Esempi:
 - "genera report" / "voglio un report" / "crea un report" / "esporta" / "analisi documenti" / "scarica report" → avvia_report
 - "come carico" / "come si caricano" / "come faccio upload" / "caricare file" / "come carico i file" → guida_carica_file
 - "come interrogo" / "come faccio domande ai file" / "chattare con i file" / "analizzare documenti" / "fare domande ai documenti" → guida_interroga_file
+- "invia questo file su WhatsApp a..." / "manda su WhatsApp" / "invia per WhatsApp al numero..." → send_whatsapp con params.telefono e params.documento_ids
+- "invia per WhatsApp" (senza numero) → chiedi il numero prima di eseguire
 
 REGOLA SUGGERIMENTO:
 Per domande informative su COME fare qualcosa, aggiungi alla fine: " Vuoi che apra direttamente il form?"
@@ -267,6 +269,7 @@ AZIONI DISPONIBILI:
 - avvia_report
 - guida_carica_file
 - guida_interroga_file
+- send_whatsapp
 
 FORMATO RISPOSTA — SOLO JSON:
 {

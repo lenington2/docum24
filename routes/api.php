@@ -16,6 +16,7 @@ use App\Http\Controllers\UrlFavoritaController;
 use App\Http\Controllers\SupportChatController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ClaudeController;
+use App\Http\Controllers\WhatsAppController;
 
 // ─── Auth (público) ────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
@@ -126,4 +127,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/teams/{team}/members/{member}', [TeamController::class, 'removeMember']);
     Route::post('/teams/{team}/projects', [TeamController::class, 'assignProject']);
     Route::post('/teams/{team}/switch', [TeamController::class, 'switchTeam']);
+
+    // WhatsApp
+    Route::post('/whatsapp/send-document', [WhatsAppController::class, 'sendDocument']);
+    Route::post('/whatsapp/send-message', [WhatsAppController::class, 'sendMessage']);
+
 });

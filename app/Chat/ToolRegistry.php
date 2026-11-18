@@ -28,6 +28,7 @@ class ToolRegistry
         Tools\GenerateReport::class,
         Tools\ToggleSetting::class,
         Tools\NavigateUI::class,
+        Tools\SendWhatsApp::class,
     ];
 
     /**

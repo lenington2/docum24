@@ -67,4 +67,11 @@ return [
         'redirect' => env('FACEBOOK_REDIRECT_URL', '/api/auth/facebook/callback'),
     ],
 
+    'whatsapp' => [
+        'phone_id' => env('WHATSAPP_PHONE_ID'),
+        'account_id' => env('WHATSAPP_ACCOUNT_ID'),
+        'token' => env('WHATSAPP_TOKEN'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+    ],
+
 ];
